@@ -227,6 +227,9 @@
   // ---------- WebSocket ----------
   let ws = null;
   let wsReady = false;
+  let reconnectTimer = null;
+  let reconnectAttempts = 0;
+  let isReconnecting = false;
 
   function getWsUrl(){
     const params = new URLSearchParams(location.search);
@@ -242,24 +245,52 @@
   }
 
   function connect(){
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
     const url = getWsUrl();
     ws = new WebSocket(url);
     ws.onopen = () => {
       wsReady = true;
+      reconnectAttempts = 0;
+      isReconnecting = false;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       connEl.textContent = "已連線";
       connEl.className = "conn-status online";
+      // Re-fetch room list after reconnect so lobby data is up to date.
+      sendMsg("listRooms");
     };
     ws.onclose = () => {
       wsReady = false;
-      connEl.textContent = "連線中斷，請重新整理頁面";
-      connEl.className = "conn-status offline";
+      scheduleReconnect();
     };
-    ws.onerror = () => {};
+    ws.onerror = () => {
+      try { ws.close(); } catch (e) {}
+    };
     ws.onmessage = ev => {
       let msg;
       try{ msg = JSON.parse(ev.data); }catch(e){ return; }
       handleServerMessage(msg);
     };
+  }
+
+  function scheduleReconnect(){
+    if (reconnectTimer) return;
+    reconnectAttempts += 1;
+    isReconnecting = true;
+    const waitMs = Math.min(10000, 800 * Math.pow(1.6, reconnectAttempts - 1));
+    const seconds = Math.max(1, Math.round(waitMs / 1000));
+    connEl.textContent = `連線中斷，${seconds} 秒後自動重連`;
+    connEl.className = "conn-status offline";
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      if (isReconnecting) {
+        connect();
+      }
+    }, waitMs);
   }
 
   function sendMsg(type, payload){
