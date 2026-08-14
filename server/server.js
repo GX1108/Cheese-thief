@@ -9,6 +9,9 @@ const WebSocket = require("ws");
 const PORT = process.env.PORT || 8080;
 const MIN_PLAYERS = 5;
 const MAX_PLAYERS = 8;
+const NIGHT_ROUND_MS = 15000;
+const SOLO_PEEK_TIMEOUT_MS = 10000;
+const PHASE_TRANSITION_MS = 2500;
 
 const ROLE = {
   THIEF: "奶酪大盜",
@@ -66,6 +69,7 @@ function lobbySummary(room) {
   return {
     code: room.code,
     isPublic: room.isPublic,
+    status: room.status,
     maxPlayers: MAX_PLAYERS,
     minPlayers: MIN_PLAYERS,
     hostId: room.hostId,
@@ -103,6 +107,35 @@ function destroyRoomIfEmpty(room) {
   }
 }
 
+function pickRandomHostId(room) {
+  const playerIds = [...room.players.keys()];
+  if (!playerIds.length) return null;
+  return playerIds[Math.floor(Math.random() * playerIds.length)];
+}
+
+function clearRoomTimer(room) {
+  clearTimeout(room.nightTimer);
+  room.nightTimer = null;
+}
+
+function resetRoomToLobby(room) {
+  clearRoomTimer(room);
+  room.status = "lobby";
+  room.nightRound = 0;
+  room.stolen = false;
+  room.accompliceStepDone = false;
+  room.pendingAction = null;
+  room.votes = new Map();
+  room.log = [];
+
+  for (const player of room.players.values()) {
+    player.role = null;
+    player.dice = null;
+    player.isAccomplice = false;
+    player.ready = false;
+  }
+}
+
 function startGame(room) {
   const n = room.players.size;
   const roles = [ROLE.THIEF];
@@ -112,7 +145,7 @@ function startGame(room) {
   let i = 0;
   for (const player of room.players.values()) {
     const role = shuffledRoles[i++];
-    const dice = role === ROLE.THIEF ? 1 : rollDice();
+    const dice = rollDice();
     player.role = role;
     player.dice = dice;
     player.isAccomplice = false;
@@ -146,6 +179,7 @@ function startNightPhase(room) {
 }
 
 function nightTick(room) {
+  clearRoomTimer(room);
   room.nightRound++;
   const round = room.nightRound;
   const waking = [...room.players.values()].filter(p => p.dice === round);
@@ -191,6 +225,12 @@ function nightTick(room) {
       action: "peekPrompt",
       targets: [...room.players.values()].filter(p => p.id !== mouse.id).map(p => ({ id: p.id, name: p.name }))
     });
+    room.nightTimer = setTimeout(() => {
+      if (!room.pendingAction || room.pendingAction.type !== "peek" || room.pendingAction.mouseId !== mouse.id) return;
+      room.log.push(`第 ${round} 回合：${mouse.name} 未在時限內查看骰子，直接略過。`);
+      room.pendingAction = null;
+      scheduleNextNightStep(room);
+    }, SOLO_PEEK_TIMEOUT_MS);
     return; // wait for peek choice
   }
 
@@ -199,14 +239,15 @@ function nightTick(room) {
 }
 
 function scheduleNextNightStep(room) {
+  clearRoomTimer(room);
   if (room.nightRound >= 6) {
     if (!room.accompliceStepDone) {
       beginAccompliceAssignment(room);
     } else {
-      room.nightTimer = setTimeout(() => startDayPhase(room), 2500);
+      room.nightTimer = setTimeout(() => startDayPhase(room), PHASE_TRANSITION_MS);
     }
   } else {
-    room.nightTimer = setTimeout(() => nightTick(room), 4000);
+    room.nightTimer = setTimeout(() => nightTick(room), NIGHT_ROUND_MS);
   }
 }
 
@@ -217,6 +258,7 @@ function resolvePeek(room, mouseId, targetId) {
   if (!mouse || !target || target.id === mouse.id) return;
   send(mouse.ws, "peekResult", { targetName: target.name, dice: target.dice });
   room.pendingAction = null;
+  clearRoomTimer(room);
   scheduleNextNightStep(room);
 }
 
@@ -263,11 +305,13 @@ function resolveAccompliceAssign(room, thiefId, targetIds) {
 
   room.pendingAction = null;
   room.accompliceStepDone = true;
-  room.nightTimer = setTimeout(() => startDayPhase(room), 2500);
+  clearRoomTimer(room);
+  room.nightTimer = setTimeout(() => startDayPhase(room), PHASE_TRANSITION_MS);
 }
 
 
 function startDayPhase(room) {
+  clearRoomTimer(room);
   room.status = "day";
   room.votes = new Map();
   broadcast(room, "dayStart", { stolen: room.stolen });
@@ -399,13 +443,19 @@ function handleMessage(ws, msg) {
       if (!room) return;
       room.players.delete(ws.playerId);
       if (room.hostId === ws.playerId) {
-        const next = [...room.players.keys()][0];
-        room.hostId = next !== undefined ? next : null;
+        room.hostId = pickRandomHostId(room);
       }
       broadcast(room, "roomUpdate", { room: lobbySummary(room) });
       destroyRoomIfEmpty(room);
       ws.roomCode = null;
       ws.playerId = null;
+      break;
+    }
+    case "restartRoom": {
+      const room = rooms.get(ws.roomCode);
+      if (!room || room.status !== "over") return;
+      resetRoomToLobby(room);
+      broadcast(room, "roomUpdate", { room: lobbySummary(room) });
       break;
     }
     case "startGame": {
@@ -470,8 +520,7 @@ function handleClose(ws) {
   if (room.status === "lobby") {
     room.players.delete(ws.playerId);
     if (room.hostId === ws.playerId) {
-      const next = [...room.players.keys()][0];
-      room.hostId = next !== undefined ? next : null;
+      room.hostId = pickRandomHostId(room);
     }
     broadcast(room, "roomUpdate", { room: lobbySummary(room) });
   } else {

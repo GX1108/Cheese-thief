@@ -85,6 +85,7 @@
   .btn:active{ transform: translateY(0); }
   .btn.secondary{ background: #30363d; color: var(--text); }
   .btn:disabled{ opacity:.4; cursor:not-allowed; transform:none; box-shadow:none; }
+  .btn.small{ padding: 10px 16px; min-width: 96px; font-size: .95rem; }
 
   .home-buttons{ display:flex; flex-direction:column; gap:14px; margin-top:24px; }
   .home-buttons .btn{ padding: 22px 28px; font-size: 1.3rem; }
@@ -304,13 +305,13 @@
       case "roomJoined":
         state.room = msg.room;
         state.yourId = msg.yourId;
-        state.isHost = msg.isHost;
+        state.isHost = state.room.hostId === state.yourId;
         screenRoomLobby();
         break;
       case "roomUpdate":
         state.room = msg.room;
-        if(state.room.hostId === state.yourId) state.isHost = true;
-        screenRoomLobby();
+        state.isHost = state.room.hostId === state.yourId;
+        if(state.room.status === "lobby") screenRoomLobby();
         break;
       case "error":
         showError(msg.message);
@@ -631,7 +632,7 @@
           ${img ? `<img class="role-card-img" src="${img}" alt="${state.myRole}">` : ""}
           <div class="role-name ${roleClass}">${state.myRole}</div>
           <div class="dice">🎲 骰子點數：${state.myDice}</div>
-          <p style="color:var(--text-dim); margin:6px 0 0;">${state.myRole === ROLE.THIEF ? "（大盜固定於黑夜第 1 回合睜眼）" : "請記住你的睜眼回合數"}</p>
+          <p style="color:var(--text-dim); margin:6px 0 0;">${state.myRole === ROLE.THIEF ? "（大盜會依你的骰子點數，在 1 到 6 的其中一回合睜眼）" : "請記住你的睜眼回合數"}</p>
         </div>
         <button class="btn" id="readyBtn">我準備好了</button>
         <p id="readyProgressText">等待其他玩家確認...</p>
@@ -656,7 +657,7 @@
         <div class="moon">🌙</div>
         <h2>黑夜降臨...請關閉螢幕或放下裝置</h2>
         <div class="round-counter">第 ${round} 回合</div>
-        <p>系統正在自動處理睜眼順序，請保持安靜等待...</p>
+        <p>本回合保留 15 秒給對應玩家確認與操作，請保持安靜等待...</p>
       </div>
     `);
   }
@@ -667,7 +668,7 @@
         <div class="screen night-screen">
           <div class="moon">🌙</div>
           <h2>🧀 你是奶酪大盜</h2>
-          <p>你必須默默拿走奶酪，其他人請閉眼。</p>
+          <p>你必須默默拿走奶酪，其他人請閉眼。本回合最長 15 秒後會自動繼續。</p>
           <button class="btn" id="continueBtn">確認</button>
         </div>
       `);
@@ -679,6 +680,7 @@
           <h2>🤝 互相確認</h2>
           <p>以下玩家與你同時睜眼，請互相確認彼此是好人丙伴（不能查看髈子）：</p>
           <p style="color:var(--accent);">${msg.names.map(escapeHtml).join("、")}</p>
+          <p>本回合最長 15 秒後會自動繼續。</p>
           <button class="btn" id="continueBtn">確認</button>
         </div>
       `);
@@ -687,7 +689,7 @@
       render(`
         <div class="screen night-screen">
           <h2>👁️ 你獨自睜眼</h2>
-          <p>可以查看一位玩家的髈子點數：</p>
+          <p>可以查看一位玩家的髈子點數；10 秒內未選擇會自動略過：</p>
           <div class="vote-grid">
             ${msg.targets.map(t => `<button class="btn secondary" data-target="${t.id}">${escapeHtml(t.name)}</button>`).join("")}
           </div>
@@ -844,11 +846,16 @@
         </table>
         <div class="log-box">${(msg.log || []).map(l => `<div>${escapeHtml(l)}</div>`).join("")}</div>
         <div style="margin-top:20px;">
-          <button class="btn" id="backHomeBtn">返回大廳</button>
+          <button class="btn secondary small" id="replayBtn">再玩一次</button>
+          <button class="btn small" id="leaveBtn">離開</button>
         </div>
       </div>
     `);
-    document.getElementById("backHomeBtn").onclick = () => {
+    document.getElementById("replayBtn").onclick = () => {
+      sendMsg("restartRoom");
+      render(`<div class="screen"><p>正在返回原房間...</p></div>`);
+    };
+    document.getElementById("leaveBtn").onclick = () => {
       sendMsg("leaveRoom");
       state.room = null;
       screenHome();
