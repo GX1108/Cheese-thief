@@ -775,7 +775,7 @@
       <div class="screen night-screen">
         <div class="moon">🌙</div>
         <h2>黑夜降臨...請關閉螢幕或放下裝置</h2>
-        <div class="round-counter">第 ${round} 回合</div>
+        <div class="round-counter">第 ${round} 回合 ${roundFace(round)}</div>
         <p>本回合保留 20 秒給對應玩家確認與操作，請保持安靜等待...</p>
         ${renderCountdownBox("nightCountdownText", "nightCountdownBar", "剩餘 20 秒")}
       </div>
@@ -795,6 +795,12 @@
   function renderCoWakeLines(names){
     if (!names || names.length === 0) return `<p>這回合只有你睜眼。</p>`;
     return names.map(name => `<p>${escapeHtml(name)} 這回合與你一起睜眼</p>`).join("");
+  }
+
+  function roundFace(round){
+    const faces = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+    const idx = Math.max(1, Math.min(6, Number(round || 1))) - 1;
+    return faces[idx];
   }
 
   function renderCountdownBox(textId, barId, initialText){
@@ -834,7 +840,7 @@
       render(`
         <div class="screen night-screen">
           <div class="moon">🌙</div>
-          <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
+          <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
           <p>${msg.isThief ? "你是奶酪大盜。" : "你和其他玩家同時睜眼。"}</p>
           ${renderCoWakeLines(msg.companions)}
           ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 20 秒")}
@@ -859,7 +865,7 @@
       render(`
         <div class="screen night-screen">
           <div class="moon">🌙</div>
-          <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
+          <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
           ${renderCheeseStatus()}
           <h2>🤝 互相確認</h2>
           ${renderCoWakeLines(msg.names)}
@@ -874,7 +880,7 @@
       const timeoutMs = msg.timeoutMs || 20000;
       render(`
         <div class="screen night-screen">
-          <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
+          <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
           ${renderCheeseStatus()}
           <h2>👁️ 你獨自睜眼</h2>
           <p>可以查看一位玩家的髈子點數；20 秒內未選擇會自動略過：</p>
@@ -917,7 +923,7 @@
     const timeoutMs = msg.timeoutMs || 20000;
     render(`
       <div class="screen night-screen">
-        <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
+        <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
         ${renderCoWakeLines(msg.companions)}
         ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘 20 秒")}
         <div id="chooseAccompliceIntro">
@@ -930,7 +936,7 @@
       const remainingMs = Math.max(1000, timeoutMs - revealDelayMs);
       render(`
         <div class="screen night-screen">
-          <h2>🧀 指定共犯</h2>
+          <h2>🧀 第 ${msg.round} 回合 ${roundFace(msg.round)} 指定共犯</h2>
           <p>奶酪已被 ${escapeHtml((msg.thiefName || "奶酪大盜"))} 偷走。</p>
           ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘時間")}
           ${renderCoWakeLines(msg.companions)}
@@ -958,7 +964,7 @@
     function renderAssign(){
       render(`
         <div class="screen night-screen">
-          <h2>🧀 指定共犯</h2>
+          <h2>🧀 第 ${state.currentNightRound} 回合 ${roundFace(state.currentNightRound)} 指定共犯</h2>
           <p>請秘密指定 ${required} 名共犯（已選 ${chosen.length}/${required}）：</p>
           ${renderCountdownBox("assignCountdown", "assignCountdownBar", "剩餘 20 秒")}
           <div class="vote-grid">
