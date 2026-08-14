@@ -169,6 +169,16 @@
   .winner-banner{ font-size: 1.8rem; font-weight: bold; margin: 10px 0 18px; padding: 16px; border-radius: 12px; }
   .winner-banner.mouse-win{ background: rgba(125,211,252,0.15); color: #7dd3fc; border: 2px solid #7dd3fc; }
   .winner-banner.thief-win{ background: rgba(255,107,107,0.15); color: var(--accent-2); border: 2px solid var(--accent-2); }
+  .cheese-status-card{
+    margin: 14px 0 18px;
+    border-radius: 14px;
+    padding: 14px 16px;
+    border: 2px solid #30363d;
+    background: #0d1117;
+  }
+  .cheese-status-card.safe{ border-color: #7ee787; color: #7ee787; }
+  .cheese-status-card.missing{ border-color: var(--accent-2); color: var(--accent-2); }
+  .cheese-status-emoji{ font-size: 2.4rem; margin-bottom: 8px; }
 
   .log-box{ text-align:left; max-height: 200px; overflow-y:auto; background:#0d1117; border-radius: 10px; padding: 12px 16px; margin-top: 14px; font-size: .9rem; color: var(--text-dim); }
   .conn-status{ position:fixed; top:10px; right:10px; font-size:.75rem; padding:6px 10px; border-radius:8px; background:#30363d; color:var(--text-dim); }
@@ -396,7 +406,7 @@
         showPeekResult(msg);
         break;
       case "chooseAccomplicePrompt":
-        showChooseAccomplice(msg.candidates);
+        showChooseAccomplice(msg);
         break;
       case "assignAccomplicePrompt":
         showAssignAccomplice(msg.required, msg.candidates);
@@ -760,6 +770,23 @@
     `);
   }
 
+  function renderCheeseStatus(cheeseTaken){
+    if (cheeseTaken) {
+      return `
+        <div class="cheese-status-card missing">
+          <div class="cheese-status-emoji">🧀❌</div>
+          <div>奶酪已經不見了</div>
+        </div>
+      `;
+    }
+    return `
+      <div class="cheese-status-card safe">
+        <div class="cheese-status-emoji">🧀</div>
+        <div>奶酪還在</div>
+      </div>
+    `;
+  }
+
   function handleNightAction(msg){
     clearUiTimers();
     if(msg.action === "steal"){
@@ -767,17 +794,44 @@
       render(`
         <div class="screen night-screen">
           <div class="moon">🌙</div>
-          <h2>🧀 你是奶酪大盜</h2>
-          <p>你必須默默拿走奶酪，其他人請閉眼。本回合最長 15 秒後會自動繼續。</p>
+          <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
+          <p>你是奶酪大盜，請默默拿走奶酪。</p>
+          ${msg.companions && msg.companions.length ? `<p>這回合和你一起睜眼的人：${msg.companions.map(escapeHtml).join("、")}</p>` : `<p>這回合只有你睜眼。</p>`}
+          ${renderCheeseStatus(true)}
           <button class="btn" id="continueBtn">確認</button>
         </div>
       `);
       document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
+    } else if(msg.action === "witnessThief"){
+      setView("nightAction");
+      render(`
+        <div class="screen night-screen">
+          <div class="moon">🌙</div>
+          <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
+          <p>這回合和你一起睜眼的人：${msg.companions.map(escapeHtml).join("、")}</p>
+          <div id="thiefRevealBox">
+            <p>請先觀察同時睜眼的人...</p>
+          </div>
+        </div>
+      `);
+      uiTimer = setTimeout(() => {
+        const box = document.getElementById("thiefRevealBox");
+        if (!box) return;
+        box.innerHTML = `
+          ${renderCheeseStatus(true)}
+          <div class="reveal-box">
+            <p>偷走奶酪的人是：</p>
+            <div class="role-name thief">${escapeHtml(msg.thiefName)}</div>
+          </div>
+        `;
+      }, msg.revealDelayMs || 3000);
     } else if(msg.action === "mutual"){
       setView("nightAction");
       render(`
         <div class="screen night-screen">
           <div class="moon">🌙</div>
+          <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
+          ${renderCheeseStatus(!!msg.cheeseTaken)}
           <h2>🤝 互相確認</h2>
           <p>以下玩家與你同時睜眼，請互相確認彼此是好人丙伴（不能查看髈子）：</p>
           <p style="color:var(--accent);">${msg.names.map(escapeHtml).join("、")}</p>
@@ -791,6 +845,8 @@
       const timeoutMs = msg.timeoutMs || 15000;
       render(`
         <div class="screen night-screen">
+          <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
+          ${renderCheeseStatus(!!msg.cheeseTaken)}
           <h2>👁️ 你獨自睜眼</h2>
           <p>可以查看一位玩家的髈子點數；15 秒內未選擇會自動略過：</p>
           <p id="peekCountdown">剩餘 15 秒</p>
@@ -833,24 +889,38 @@
     document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
   }
 
-  function showChooseAccomplice(candidates){
+  function showChooseAccomplice(msg){
     clearUiTimers();
     setView("nightAction");
+    const revealDelayMs = msg.revealDelayMs || 3000;
     render(`
       <div class="screen night-screen">
-        <h2>🧀 指定共犯</h2>
-        <p>有多位貪睡鼠與你同時睜眼，請指定其中一位成為你的共犯：</p>
-        <div class="vote-grid">
-          ${candidates.map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
+        <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
+        <p>這回合和你一起睜眼的人：${(msg.companions || []).map(escapeHtml).join("、")}</p>
+        <div id="chooseAccompliceIntro">
+          ${renderCheeseStatus(true)}
+          <p>先讓所有同時睜眼的人確認奶酪已被偷走...</p>
         </div>
       </div>
     `);
-    document.querySelectorAll("#app .vote-grid button").forEach(btn => {
-      btn.onclick = () => {
-        sendMsg("chooseAccomplice", { targetId: parseInt(btn.dataset.target, 10) });
-        document.querySelectorAll("#app .vote-grid button").forEach(b => b.disabled = true);
-      };
-    });
+    uiTimer = setTimeout(() => {
+      render(`
+        <div class="screen night-screen">
+          <h2>🧀 指定共犯</h2>
+          <p>有多位貪睡鼠與你同時睜眼，請指定其中一位成為你的共犯：</p>
+          <div class="vote-grid">
+            ${msg.candidates.map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
+          </div>
+        </div>
+      `);
+      document.querySelectorAll("#app .vote-grid button").forEach(btn => {
+        btn.onclick = () => {
+          clearUiTimers();
+          sendMsg("chooseAccomplice", { targetId: parseInt(btn.dataset.target, 10) });
+          document.querySelectorAll("#app .vote-grid button").forEach(b => b.disabled = true);
+        };
+      });
+    }, revealDelayMs);
   }
 
   function showAssignAccomplice(required, candidates){

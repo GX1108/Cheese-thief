@@ -179,13 +179,30 @@ function nightTick(room) {
   const waking = [...room.players.values()].filter(p => p.dice === round);
   const thief = waking.find(p => p.role === ROLE.THIEF);
   const mice = waking.filter(p => p.role === ROLE.MOUSE);
+  const wakingNames = waking.map(p => p.name);
 
   broadcast(room, "nightRound", { round });
 
   if (thief) {
     room.stolen = true;
     room.log.push(`第 ${round} 回合：奶酪大盜睜眼，奶酪已被偷走。`);
-    send(thief.ws, "nightAction", { action: "steal" });
+    send(thief.ws, "nightAction", {
+      action: "steal",
+      round,
+      companions: wakingNames.filter(name => name !== thief.name),
+      cheeseTaken: true
+    });
+
+    mice.forEach(mouse => {
+      send(mouse.ws, "nightAction", {
+        action: "witnessThief",
+        round,
+        companions: wakingNames.filter(name => name !== mouse.name),
+        thiefName: thief.name,
+        revealDelayMs: 3000,
+        cheeseTaken: true
+      });
+    });
 
     if (room.players.size === 5) {
       const coincident = mice.filter(m => !m.isAccomplice);
@@ -194,7 +211,12 @@ function nightTick(room) {
         room.log.push(`第 ${round} 回合：${coincident[0].name} 與大盜同時睜眼，成為共犯。`);
       } else if (coincident.length >= 2) {
         room.pendingAction = { type: "accomplice-choice", thiefId: thief.id, candidateIds: coincident.map(m => m.id) };
-        send(thief.ws, "chooseAccomplicePrompt", { candidates: coincident.map(m => ({ id: m.id, name: m.name })) });
+        send(thief.ws, "chooseAccomplicePrompt", {
+          round,
+          revealDelayMs: 3000,
+          companions: wakingNames.filter(name => name !== thief.name),
+          candidates: coincident.map(m => ({ id: m.id, name: m.name }))
+        });
         return; // wait for thief's choice
       }
     }
@@ -205,7 +227,12 @@ function nightTick(room) {
   if (mice.length >= 2) {
     room.log.push(`第 ${round} 回合：${mice.map(m => m.name).join("、")} 同時睜眼，互相確認彼此身分。`);
     mice.forEach(m => {
-      send(m.ws, "nightAction", { action: "mutual", names: mice.filter(x => x.id !== m.id).map(x => x.name) });
+      send(m.ws, "nightAction", {
+        action: "mutual",
+        round,
+        names: mice.filter(x => x.id !== m.id).map(x => x.name),
+        cheeseTaken: room.stolen
+      });
     });
     scheduleNextNightStep(room);
     return;
@@ -217,6 +244,8 @@ function nightTick(room) {
     room.pendingAction = { type: "peek", mouseId: mouse.id };
     send(mouse.ws, "nightAction", {
       action: "peekPrompt",
+      round,
+      cheeseTaken: room.stolen,
       timeoutMs: SOLO_PEEK_TIMEOUT_MS,
       targets: [...room.players.values()].filter(p => p.id !== mouse.id).map(p => ({ id: p.id, name: p.name }))
     });
