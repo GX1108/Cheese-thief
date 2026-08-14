@@ -228,9 +228,21 @@
   let ws = null;
   let wsReady = false;
 
+  function getWsUrl(){
+    const params = new URLSearchParams(location.search);
+    const customServer = params.get("server");
+    const origin = customServer
+      ? customServer
+      : (location.hostname.endsWith("github.io")
+          ? "https://cheese-thief.onrender.com"
+          : location.origin);
+    const parsed = new URL(origin);
+    const wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProto}//${parsed.host}`;
+  }
+
   function connect(){
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${proto}//${location.host}`;
+    const url = getWsUrl();
     ws = new WebSocket(url);
     ws.onopen = () => {
       wsReady = true;
