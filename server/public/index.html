@@ -433,7 +433,7 @@
         break;
       case "dayStart":
         state.hasVoted = false;
-        screenDayVote(msg.stolen);
+        screenDayVote();
         break;
       case "voteProgress":
         updateVoteProgress(msg.votedCount, msg.total);
@@ -845,7 +845,7 @@
           ${renderCoWakeLines(msg.companions)}
           ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 20 秒")}
           <div id="thiefRoundStatus">
-            <p>等待偷走奶酪...</p>
+            <p>正在行動中...</p>
           </div>
           <button class="btn" id="continueBtn">確認</button>
         </div>
@@ -927,7 +927,7 @@
         ${renderCoWakeLines(msg.companions)}
         ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘 20 秒")}
         <div id="chooseAccompliceIntro">
-          <p>等待偷走奶酪...</p>
+          <p>正在行動中...</p>
         </div>
       </div>
     `);
@@ -1007,11 +1007,11 @@
   }
 
   // ---------- Screen: Day & Vote ----------
-  function screenDayVote(stolen){
+  function screenDayVote(){
     clearUiTimers();
     setView("dayVote");
     const room = state.room;
-    const stolenMsg = stolen ? "黑夜結束！奶酪不見了！" : "黑夜結束！奶酪竟然安然無恙！";
+    const stolenMsg = "黑夜結束！奶酪不見了！";
     render(`
       <div class="screen">
         <div class="day-banner">☀️ ${stolenMsg}</div>
