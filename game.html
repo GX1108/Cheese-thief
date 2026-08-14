@@ -385,6 +385,7 @@
     revealTimer: null,
     nightRound: 0,
     nightTimer: null,
+    thiefRevealTimer: null,
     stolenBySomeone: false,
     accompliceStepDone: false,
     pendingAccompliceChoice: null, // { candidates, thief }
@@ -521,7 +522,7 @@
         • 若你是<strong>奶酪大盜</strong>：不論是否有人同時睜眼，都必須默默拿走奶酪。<br>
         （5 人局：若有貪睡鼠與大盜同時睜眼，該玩家自動成為共犯；若有 2 位以上，大盜指定其中一位。）</p>
         <p><strong>白天討論與投票</strong><br>
-        黑夜結束後公布奶酪是否被偷。玩家自由討論、互相嘴砲（不能看骰盅、不能翻開身分卡），主持人倒數 3、2、1 後所有人同時指向一位玩家。</p>
+        黑夜結束後公布奶酪是否被偷。玩家自由討論（不能看骰盅、不能翻開身分卡），主持人倒數 3、2、1 後所有人同時指向一位玩家。</p>
         <p><strong>勝負判定</strong><br>
         若最高票不只一人，所有平票玩家都要翻開身分卡。翻開的身分卡中<strong>只要出現奶酪大盜</strong>，貪睡鼠陣營獲勝；<strong>完全沒有奶酪大盜</strong>，則大盜與其共犯獲勝（即使翻開的是共犯或一般貪睡鼠，大盜仍未曝光即算逃脫成功）。</p>
         <div style="text-align:center; margin-top:16px;">
@@ -706,7 +707,7 @@
     state.players = [];
     for(let i = 0; i < n; i++){
       const role = shuffledRoles[i];
-      const dice = role === ROLE.THIEF ? 1 : rollDice();
+      const dice = rollDice();
       state.players.push({
         id: i + 1,
         name: `玩家 ${i + 1}`,
@@ -747,7 +748,7 @@
         ${img ? `<img class="role-card-img" src="${img}" alt="${p.role}">` : ""}
         <div class="role-name ${roleClass}">${p.role}</div>
         <div class="dice">🎲 骰子點數：${p.dice}</div>
-        <p style="color:var(--text-dim); margin:6px 0 0;">${p.role === ROLE.THIEF ? "（大盜固定於黑夜第 1 回合睜眼）" : "請記住你的睜眼回合數"}</p>
+        <p style="color:var(--text-dim); margin:6px 0 0;">${p.role === ROLE.THIEF ? "（大盜會在你的骰子點數回合睜眼，並於該回合第 5 秒偷走奶酪）" : "請記住你的睜眼回合數"}</p>
       </div>
       <button class="btn secondary" id="confirmBtn">確認已記住</button>
     `;
@@ -814,8 +815,6 @@
     const mice = waking.filter(p => p.role === ROLE.MOUSE);
 
     if(thief){
-      state.stolenBySomeone = true;
-      state.log.push(`第 ${round} 回合：奶酪大盜睜眼，奶酪已被偷走。`);
       if(state.players.length === 5){
         const coincident = mice.filter(m => !m.isAccomplice);
         if(coincident.length === 1){
@@ -847,19 +846,35 @@
   }
 
   function renderThiefWakeScreen(round){
+    clearTimeout(state.thiefRevealTimer);
     render(`
       <div class="screen night-screen">
         <div class="moon">🌙</div>
         <h2>第 ${round} 回合</h2>
         <p>現在請 <strong style="color:var(--accent)">奶酪大盜</strong> 睜眼查看畫面，其他人請閉眼。</p>
-        <div class="reveal-box">
-          <div class="role-name thief">🧀 你必須默默拿走奶酪</div>
+        <div class="reveal-box" id="thiefActionBox">
+          <div class="role-name thief">🧀 請等待第 5 秒再偷走奶酪</div>
+          <p id="thiefActionHint">偷竊倒數中...</p>
         </div>
-        <button class="btn" id="continueBtn">確認並閉眼</button>
+        <button class="btn" id="continueBtn" disabled>確認並閉眼</button>
       </div>
       ${secretLogButtonHtml()}
     `);
     bindSecretLogButton();
+    state.thiefRevealTimer = setTimeout(() => {
+      state.stolenBySomeone = true;
+      state.log.push(`第 ${round} 回合第 5 秒：奶酪已被偷走。`);
+      const box = document.getElementById("thiefActionBox");
+      if (box) {
+        box.innerHTML = `
+          <div class="role-name thief">🧀 奶酪已被偷走</div>
+          <p>第 5 秒已完成偷竊，請關閉螢幕。</p>
+        `;
+      }
+      const continueBtn = document.getElementById("continueBtn");
+      if (continueBtn) continueBtn.disabled = false;
+      state.thiefRevealTimer = null;
+    }, 5000);
     document.getElementById("continueBtn").onclick = () => nightStep();
   }
 
@@ -1082,7 +1097,7 @@
     render(`
       <div class="screen">
         <div class="day-banner">☀️ ${stolenMsg}</div>
-        <p>請玩家開始自由討論、互相嘴砲（建議計時 3 分鐘，過程中不能看骰盅、不能翻開身分卡），討論結束後依序上前投票。</p>
+        <p>請玩家開始自由討論，討論結束後依序上前投票。</p>
         <h2>輪到 <span style="color:var(--accent)">${voter.name}</span> 投票</h2>
         <div class="vote-status">請點選你懷疑的對象</div>
         <div class="vote-grid">
@@ -1180,6 +1195,7 @@
     document.getElementById("restartBtn").onclick = () => {
       clearTimeout(state.nightTimer);
       clearTimeout(state.revealTimer);
+      clearTimeout(state.thiefRevealTimer);
       screenHome();
     };
   }
