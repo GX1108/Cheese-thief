@@ -90,6 +90,7 @@ function createRoom({ isPublic, password }) {
     nextPlayerId: 1,
     status: "lobby", // lobby -> confirm -> night -> day -> over
     nightRound: 0,
+    roundEndsAt: 0,
     nightTimer: null,
     stolen: false,
     accompliceStepDone: false,
@@ -177,12 +178,14 @@ function nightTick(room) {
   clearRoomTimer(room);
   room.nightRound++;
   const round = room.nightRound;
+  const roundEndsAt = Date.now() + NIGHT_ROUND_MS;
+  room.roundEndsAt = roundEndsAt;
   const waking = [...room.players.values()].filter(p => p.dice === round);
   const thief = waking.find(p => p.role === ROLE.THIEF);
   const mice = waking.filter(p => p.role === ROLE.MOUSE);
   const wakingNames = waking.map(p => p.name);
 
-  broadcast(room, "nightRound", { round, durationMs: NIGHT_ROUND_MS });
+  broadcast(room, "nightRound", { round, durationMs: NIGHT_ROUND_MS, roundEndsAt });
 
   if (thief) {
     room.log.push(`第 ${round} 回合：奶酪大盜睜眼。`);
@@ -196,6 +199,7 @@ function nightTick(room) {
       isThief: true,
       round,
       timeoutMs: NIGHT_ROUND_MS,
+      roundEndsAt,
       revealDelayMs: THIEF_REVEAL_MS,
       thiefName: thief.name,
       companions: wakingNames.filter(name => name !== thief.name),
@@ -208,6 +212,7 @@ function nightTick(room) {
         isThief: false,
         round,
         timeoutMs: NIGHT_ROUND_MS,
+        roundEndsAt,
         companions: wakingNames.filter(name => name !== mouse.name),
         thiefName: thief.name,
         revealDelayMs: THIEF_REVEAL_MS,
@@ -225,6 +230,7 @@ function nightTick(room) {
         send(thief.ws, "chooseAccomplicePrompt", {
           round,
           timeoutMs: NIGHT_ROUND_MS,
+          roundEndsAt,
           revealDelayMs: THIEF_REVEAL_MS,
           thiefName: thief.name,
           companions: wakingNames.filter(name => name !== thief.name),
@@ -233,7 +239,12 @@ function nightTick(room) {
         return; // wait for thief's choice
       }
     }
-    scheduleNextNightStep(room);
+    scheduleNextNightStep(room, roundEndsAt, () => {
+      if (room.pendingAction && room.pendingAction.type === "accomplice-choice") {
+        room.log.push("大盜未在時限內指定共犯，本回合不新增共犯。");
+        room.pendingAction = null;
+      }
+    });
     return;
   }
 
@@ -244,11 +255,12 @@ function nightTick(room) {
         action: "mutual",
         round,
         timeoutMs: NIGHT_ROUND_MS,
+        roundEndsAt,
         names: mice.filter(x => x.id !== m.id).map(x => x.name),
         cheeseTaken: room.stolen
       });
     });
-    scheduleNextNightStep(room);
+    scheduleNextNightStep(room, roundEndsAt);
     return;
   }
 
@@ -261,47 +273,38 @@ function nightTick(room) {
       round,
       cheeseTaken: room.stolen,
       timeoutMs: SOLO_PEEK_TIMEOUT_MS,
+      roundEndsAt,
       targets: [...room.players.values()].filter(p => p.id !== mouse.id).map(p => ({ id: p.id, name: p.name }))
     });
-    room.nightTimer = setTimeout(() => {
+    scheduleNextNightStep(room, roundEndsAt, () => {
       if (!room.pendingAction || room.pendingAction.type !== "peek" || room.pendingAction.mouseId !== mouse.id) return;
       room.log.push(`第 ${round} 回合：${mouse.name} 未在時限內查看骰子，直接略過。`);
       room.pendingAction = null;
-      proceedToNextNightStepImmediately(room);
-    }, SOLO_PEEK_TIMEOUT_MS);
+    });
     return; // wait for peek choice
   }
 
   room.log.push(`第 ${round} 回合：無人睜眼。`);
-  scheduleNextNightStep(room);
+  scheduleNextNightStep(room, roundEndsAt);
 }
 
-function scheduleNextNightStep(room) {
+function scheduleNextNightStep(room, roundEndsAt, onRoundEnd) {
   clearRoomTimer(room);
-  if (room.nightRound >= 6) {
-    room.nightTimer = setTimeout(() => {
+  const delay = Math.max(0, roundEndsAt - Date.now());
+  room.nightTimer = setTimeout(() => {
+    if (typeof onRoundEnd === "function") onRoundEnd();
+    if (room.status !== "night") return;
+
+    if (room.nightRound >= 6) {
       if (room.accompliceStepDone) {
         startDayPhase(room);
       } else {
         beginAccompliceAssignment(room);
       }
-    }, NIGHT_ROUND_MS);
-  } else {
-    room.nightTimer = setTimeout(() => nightTick(room), NIGHT_ROUND_MS);
-  }
-}
-
-function proceedToNextNightStepImmediately(room) {
-  clearRoomTimer(room);
-  if (room.nightRound >= 6) {
-    if (room.accompliceStepDone) {
-      startDayPhase(room);
     } else {
-      beginAccompliceAssignment(room);
+      nightTick(room);
     }
-  } else {
-    nightTick(room);
-  }
+  }, delay);
 }
 
 function resolvePeek(room, mouseId, targetId) {
@@ -309,10 +312,8 @@ function resolvePeek(room, mouseId, targetId) {
   const mouse = room.players.get(mouseId);
   const target = room.players.get(targetId);
   if (!mouse || !target || target.id === mouse.id) return;
-  send(mouse.ws, "peekResult", { targetName: target.name, dice: target.dice });
+  send(mouse.ws, "peekResult", { targetName: target.name, dice: target.dice, roundEndsAt: room.roundEndsAt });
   room.pendingAction = null;
-  clearRoomTimer(room);
-  scheduleNextNightStep(room);
 }
 
 function resolveAccompliceChoice(room, thiefId, targetId) {
@@ -323,23 +324,24 @@ function resolveAccompliceChoice(room, thiefId, targetId) {
   chosen.isAccomplice = true;
   room.log.push(`大盜指定 ${chosen.name} 成為共犯。`);
   room.pendingAction = null;
-  scheduleNextNightStep(room);
 }
 
 function beginAccompliceAssignment(room) {
   clearRoomTimer(room);
   const n = room.players.size;
   const required = n === 6 ? 1 : 2;
+  const roundEndsAt = Date.now() + NIGHT_ROUND_MS;
   const thief = [...room.players.values()].find(p => p.role === ROLE.THIEF);
   const eligible = [...room.players.values()].filter(p => p.role === ROLE.MOUSE && !p.isAccomplice);
   room.pendingAction = { type: "assign", thiefId: thief.id, required };
-  send(thief.ws, "assignAccomplicePrompt", { required, timeoutMs: NIGHT_ROUND_MS, candidates: eligible.map(p => ({ id: p.id, name: p.name })) });
+  send(thief.ws, "assignAccomplicePrompt", { required, timeoutMs: NIGHT_ROUND_MS, roundEndsAt, candidates: eligible.map(p => ({ id: p.id, name: p.name })) });
   room.nightTimer = setTimeout(() => {
-    if (!room.pendingAction || room.pendingAction.type !== "assign") return;
-    room.log.push("大盜未在時限內指定共犯，本局不新增共犯。");
-    room.pendingAction = null;
+    if (room.pendingAction && room.pendingAction.type === "assign") {
+      room.log.push("大盜未在時限內指定共犯，本局不新增共犯。");
+      room.pendingAction = null;
+    }
     room.accompliceStepDone = true;
-    room.nightTimer = setTimeout(() => startDayPhase(room), PHASE_TRANSITION_MS);
+    startDayPhase(room);
   }, NIGHT_ROUND_MS);
 }
 
@@ -366,16 +368,19 @@ function resolveAccompliceAssign(room, thiefId, targetIds) {
 
   room.pendingAction = null;
   room.accompliceStepDone = true;
-  clearRoomTimer(room);
-  room.nightTimer = setTimeout(() => startDayPhase(room), PHASE_TRANSITION_MS);
 }
 
 
 function startDayPhase(room) {
   clearRoomTimer(room);
-  room.status = "day";
-  room.votes = new Map();
-  broadcast(room, "dayStart", { stolen: room.stolen });
+  const thinkEndsAt = Date.now() + NIGHT_ROUND_MS;
+  room.status = "day-think";
+  broadcast(room, "dayStart", { durationMs: NIGHT_ROUND_MS, thinkEndsAt });
+  room.nightTimer = setTimeout(() => {
+    room.status = "day";
+    room.votes = new Map();
+    broadcast(room, "dayVoteStart", { thinkEndsAt });
+  }, NIGHT_ROUND_MS);
 }
 
 function registerVote(room, voterId, targetId) {
