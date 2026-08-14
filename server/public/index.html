@@ -237,7 +237,7 @@
     const origin = customServer
       ? customServer
       : (location.hostname.endsWith("github.io")
-          ? "https://cheese-thief.onrender.com"
+          ? "https://cheese-thief-ws.onrender.com"
           : location.origin);
     const parsed = new URL(origin);
     const wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
