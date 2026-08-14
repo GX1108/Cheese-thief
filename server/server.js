@@ -181,7 +181,7 @@ function nightTick(room) {
   const mice = waking.filter(p => p.role === ROLE.MOUSE);
   const wakingNames = waking.map(p => p.name);
 
-  broadcast(room, "nightRound", { round });
+  broadcast(room, "nightRound", { round, durationMs: NIGHT_ROUND_MS });
 
   if (thief) {
     room.stolen = true;
@@ -265,11 +265,13 @@ function nightTick(room) {
 function scheduleNextNightStep(room) {
   clearRoomTimer(room);
   if (room.nightRound >= 6) {
-    if (!room.accompliceStepDone) {
-      beginAccompliceAssignment(room);
-    } else {
-      room.nightTimer = setTimeout(() => startDayPhase(room), PHASE_TRANSITION_MS);
-    }
+    room.nightTimer = setTimeout(() => {
+      if (room.accompliceStepDone) {
+        startDayPhase(room);
+      } else {
+        beginAccompliceAssignment(room);
+      }
+    }, NIGHT_ROUND_MS);
   } else {
     room.nightTimer = setTimeout(() => nightTick(room), NIGHT_ROUND_MS);
   }
