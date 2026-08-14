@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>奶酪大盜 Cheese Thief - 連線版</title>
+<style>
+  :root{
+    --bg-dark: #0d1117;
+    --bg-panel: #161b22;
+    --accent: #f5c518;
+    --accent-2: #ff6b6b;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --night: #05070d;
+  }
+  *{ box-sizing: border-box; }
+  html, body{
+    margin:0; padding:0; height:100%;
+    font-family: "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif;
+    background: radial-gradient(circle at 50% 0%, #1b2230 0%, var(--bg-dark) 60%);
+    color: var(--text);
+    transition: background .3s;
+  }
+  body.home-bg{
+    background:
+      linear-gradient(rgba(5,7,13,0.55), rgba(13,17,23,0.85)),
+      url("picture/背景.png") center/cover no-repeat;
+  }
+  #app{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding: 20px;
+  }
+  .screen{
+    width:100%;
+    max-width: 640px;
+    background: var(--bg-panel);
+    border-radius: 18px;
+    padding: 28px 24px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    text-align:center;
+    animation: fadeIn .4s ease;
+  }
+  @keyframes fadeIn{
+    from{ opacity:0; transform: translateY(10px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  h1{ font-size: 2rem; margin: 0 0 6px; color: var(--accent); letter-spacing: 2px; }
+  h2{ font-size: 1.4rem; margin: 0 0 16px; }
+  p{ line-height:1.6; color: var(--text-dim); }
+  .subtitle{ margin-bottom: 24px; color: var(--text-dim); }
+
+  input[type=number], input[type=password], input[type=text]{
+    width: 100%;
+    max-width: 240px;
+    font-size: 1.1rem;
+    text-align:center;
+    padding: 10px;
+    border-radius: 10px;
+    border: 2px solid #30363d;
+    background: #0d1117;
+    color: var(--text);
+    margin: 10px 0;
+  }
+
+  .btn{
+    display:inline-block;
+    font-size: 1.1rem;
+    font-weight: bold;
+    padding: 16px 28px;
+    margin: 8px 6px;
+    border: none;
+    border-radius: 14px;
+    background: var(--accent);
+    color: #1b1b1b;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+    min-width: 140px;
+  }
+  .btn:hover{ transform: translateY(-2px); box-shadow: 0 6px 18px rgba(245,197,24,0.35); }
+  .btn:active{ transform: translateY(0); }
+  .btn.secondary{ background: #30363d; color: var(--text); }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; transform:none; box-shadow:none; }
+
+  .home-buttons{ display:flex; flex-direction:column; gap:14px; margin-top:24px; }
+  .home-buttons .btn{ padding: 22px 28px; font-size: 1.3rem; }
+
+  .corner-btn{
+    position: fixed;
+    top: 44px;
+    font-size: .8rem;
+    font-weight: bold;
+    padding: 8px 14px;
+    min-width: unset;
+    margin: 0;
+    border-radius: 10px;
+    z-index: 10;
+  }
+  .corner-btn.top-left{ left: 14px; }
+  .corner-btn.top-right{ right: 14px; }
+
+  .role-intro-grid{ display:flex; flex-direction:column; gap: 18px; margin: 16px 0; }
+  .role-intro-card{ background:#0d1117; border: 2px solid #30363d; border-radius: 14px; padding: 16px; text-align:center; }
+  .role-intro-card img{ width: 130px; max-width: 60%; border-radius: 12px; margin: 0 auto 10px; display:block; box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
+  .role-intro-card h3{ margin: 0 0 8px; }
+  .role-intro-card p{ margin:0; text-align:left; }
+
+  .toggle-group{ display:flex; gap:10px; justify-content:center; margin: 14px 0; }
+  .toggle-group button{
+    flex:1; max-width: 180px; padding: 12px; border-radius: 12px;
+    border: 2px solid #30363d; background: #0d1117; color: var(--text-dim);
+    cursor:pointer; font-size: 1rem; transition: all .15s;
+  }
+  .toggle-group button.active{ border-color: var(--accent); color: var(--accent); background: rgba(245,197,24,0.1); }
+
+  .room-code{ font-size: 2.4rem; font-weight:bold; color: var(--accent); letter-spacing: 4px; margin: 10px 0; }
+
+  .room-list{ display:flex; flex-direction:column; gap:10px; margin: 18px 0; text-align:left; }
+  .room-card{
+    background:#0d1117; border: 2px solid #30363d; border-radius: 12px; padding: 14px 16px;
+    cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition: border-color .15s;
+  }
+  .room-card:hover{ border-color: var(--accent); }
+  .room-card .room-code-small{ font-weight:bold; color: var(--accent); font-size: 1.2rem; }
+  .room-card .room-tag{ font-size: .8rem; color: var(--text-dim); }
+  .empty-hint{ color: var(--text-dim); padding: 20px 0; }
+  .error-text{ color: var(--accent-2); font-size: .9rem; margin: 4px 0; min-height: 1.2em; }
+
+  .player-list{ display:flex; flex-direction:column; gap:8px; margin: 16px 0; text-align:left; }
+  .player-chip{
+    background:#0d1117; border-radius: 10px; padding: 10px 14px;
+    display:flex; justify-content:space-between; font-size: .95rem;
+  }
+  .player-chip .tag{ color: var(--text-dim); font-size: .8rem; }
+
+  .reveal-box{
+    margin: 20px 0; padding: 24px; border-radius: 16px;
+    background: linear-gradient(135deg, #1f2937, #111827); border: 2px solid var(--accent);
+    animation: pop .3s ease;
+  }
+  @keyframes pop{ from{ transform: scale(.9); opacity:0; } to{ transform: scale(1); opacity:1; } }
+  .role-card-img{ width: 150px; max-width: 60%; border-radius: 12px; margin: 0 auto 12px; display: block; box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
+  .role-name{ font-size: 1.8rem; font-weight: bold; margin-bottom: 8px; }
+  .role-name.thief{ color: var(--accent-2); }
+  .role-name.accomplice{ color: #c084fc; }
+  .role-name.mouse{ color: #7dd3fc; }
+  .dice{ font-size: 3rem; margin: 10px 0; }
+
+  .night-screen{ background: var(--night); border: 1px solid #222; }
+  .night-screen h2{ color: var(--accent); }
+  .round-counter{ font-size: 4rem; font-weight: bold; margin: 20px 0; color: var(--accent); text-shadow: 0 0 20px rgba(245,197,24,0.4); }
+  .moon{ font-size: 3rem; }
+
+  .day-banner{ font-size: 1.6rem; font-weight: bold; color: var(--accent); margin-bottom: 6px; }
+
+  .vote-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin: 20px 0; }
+  .vote-grid .btn{ margin:0; min-width: unset; width: 100%; }
+  .vote-status{ color: var(--text-dim); margin-bottom: 6px; }
+
+  table.result-table{ width:100%; border-collapse: collapse; margin-top: 16px; font-size: .95rem; }
+  table.result-table th, table.result-table td{ padding: 8px 6px; border-bottom: 1px solid #30363d; text-align:center; }
+  table.result-table th{ color: var(--accent); }
+
+  .winner-banner{ font-size: 1.8rem; font-weight: bold; margin: 10px 0 18px; padding: 16px; border-radius: 12px; }
+  .winner-banner.mouse-win{ background: rgba(125,211,252,0.15); color: #7dd3fc; border: 2px solid #7dd3fc; }
+  .winner-banner.thief-win{ background: rgba(255,107,107,0.15); color: var(--accent-2); border: 2px solid var(--accent-2); }
+
+  .log-box{ text-align:left; max-height: 200px; overflow-y:auto; background:#0d1117; border-radius: 10px; padding: 12px 16px; margin-top: 14px; font-size: .9rem; color: var(--text-dim); }
+  .conn-status{ position:fixed; top:10px; right:10px; font-size:.75rem; padding:6px 10px; border-radius:8px; background:#30363d; color:var(--text-dim); }
+  .conn-status.online{ color:#7ee787; }
+  .conn-status.offline{ color: var(--accent-2); }
+
+  .hidden{ display:none !important; }
+  .footer-note{ margin-top: 18px; font-size: .8rem; color: #444c56; }
+</style>
+</head>
+<body>
+<div id="conn" class="conn-status offline">連線中...</div>
+<div id="app"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const ROLE = { THIEF: "奶酪大盜", MOUSE: "貪睡鼠" };
+
+  const state = {
+    playerName: "",
+    room: null,      // lobby summary from server
+    yourId: null,
+    isHost: false,
+    myRole: null,
+    myDice: null,
+    readyCount: 0,
+    votedCount: 0,
+    hasVoted: false,
+    joinCode: "",
+    currentNightRound: 0
+  };
+
+  const app = document.getElementById("app");
+  const connEl = document.getElementById("conn");
+
+  const ROLE_IMAGE = {
+    [ROLE.THIEF]: "picture/奶酪大盜.png",
+    [ROLE.MOUSE]: "picture/貪睡鼠.png",
+    SCAPEGOAT: "picture/背鍋鼠.png"
+  };
+
+  function render(html){
+    app.innerHTML = html;
+    document.body.classList.toggle("home-bg", html.includes('id="createBtn"'));
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, ch => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[ch]));
+  }
+
+  function padCode(code){ return String(code).padStart(3, "0"); }
+
+  // ---------- WebSocket ----------
+  let ws = null;
+  let wsReady = false;
+
+  function connect(){
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const url = `${proto}//${location.host}`;
+    ws = new WebSocket(url);
+    ws.onopen = () => {
+      wsReady = true;
+      connEl.textContent = "已連線";
+      connEl.className = "conn-status online";
+    };
+    ws.onclose = () => {
+      wsReady = false;
+      connEl.textContent = "連線中斷，請重新整理頁面";
+      connEl.className = "conn-status offline";
+    };
+    ws.onerror = () => {};
+    ws.onmessage = ev => {
+      let msg;
+      try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+      handleServerMessage(msg);
+    };
+  }
+
+  function sendMsg(type, payload){
+    if(!wsReady) return;
+    ws.send(JSON.stringify({ type, ...(payload || {}) }));
+  }
+
+  function handleServerMessage(msg){
+    switch(msg.type){
+      case "roomList": screenJoinList(msg.rooms); break;
+      case "roomJoined":
+        state.room = msg.room;
+        state.yourId = msg.yourId;
+        state.isHost = msg.isHost;
+        screenRoomLobby();
+        break;
+      case "roomUpdate":
+        state.room = msg.room;
+        if(state.room.hostId === state.yourId) state.isHost = true;
+        screenRoomLobby();
+        break;
+      case "error":
+        showError(msg.message);
+        break;
+      case "phaseChange":
+        if(msg.phase === "confirm") screenRoleConfirm();
+        break;
+      case "roleAssigned":
+        state.myRole = msg.role;
+        state.myDice = msg.dice;
+        break;
+      case "readyProgress":
+        state.readyCount = msg.readyCount;
+        updateReadyProgress(msg.readyCount, msg.total);
+        break;
+      case "nightRound":
+        screenNight(msg.round);
+        break;
+      case "nightAction":
+        handleNightAction(msg);
+        break;
+      case "peekResult":
+        showPeekResult(msg);
+        break;
+      case "chooseAccomplicePrompt":
+        showChooseAccomplice(msg.candidates);
+        break;
+      case "assignAccomplicePrompt":
+        showAssignAccomplice(msg.required, msg.candidates);
+        break;
+      case "accompliceReveal":
+        showAccompliceReveal(msg.thiefName, msg.partners);
+        break;
+      case "dayStart":
+        state.hasVoted = false;
+        screenDayVote(msg.stolen);
+        break;
+      case "voteProgress":
+        updateVoteProgress(msg.votedCount, msg.total);
+        break;
+      case "gameOver":
+        screenGameOver(msg);
+        break;
+    }
+  }
+
+  let lastErrorTarget = null;
+  function showError(message){
+    if(lastErrorTarget && document.getElementById(lastErrorTarget)){
+      document.getElementById(lastErrorTarget).textContent = message;
+    }
+  }
+
+  // ---------- Screen: Home ----------
+  function screenHome(){
+    render(`
+      <button class="btn secondary corner-btn top-left" id="rolesBtn">👤 角色介紹</button>
+      <button class="btn secondary corner-btn top-right" id="rulesBtn">📖 規則介紹</button>
+      <div class="screen">
+        <h1>🧀 奶酪大盜</h1>
+        <div class="subtitle">Cheese Thief — 連線多人版</div>
+        <p>請輸入你的暱稱（必填）</p>
+        <div><input type="text" id="nameInput" maxlength="20" placeholder="你的暱稱" value="${escapeHtml(state.playerName)}"></div>
+        <div class="error-text" id="homeError"></div>
+        <div class="home-buttons">
+          <button class="btn" id="createBtn">🎲 創建遊戲</button>
+          <button class="btn secondary" id="joinBtn">🚪 加入遊戲</button>
+        </div>
+      </div>
+    `);
+    lastErrorTarget = "homeError";
+    const nameInput = document.getElementById("nameInput");
+    const readName = () => {
+      const name = nameInput.value.trim().slice(0, 20);
+      if(!name){
+        document.getElementById("homeError").textContent = "請先輸入暱稱";
+        return null;
+      }
+      state.playerName = name;
+      return name;
+    };
+    document.getElementById("createBtn").onclick = () => { if(readName()) screenCreateRoom(); };
+    document.getElementById("joinBtn").onclick = () => { if(readName()) sendMsg("listRooms"); };
+    document.getElementById("rulesBtn").onclick = screenRules;
+    document.getElementById("rolesBtn").onclick = screenRoleIntro;
+  }
+
+  // ---------- Screen: Role Introduction ----------
+  function screenRoleIntro(){
+    render(`
+      <div class="screen" style="max-width:720px;">
+        <h2>👤 角色介紹</h2>
+        <div class="role-intro-grid">
+          <div class="role-intro-card">
+            <img src="picture/奶酪大盜.png" alt="奶酪大盜">
+            <h3 style="color:var(--accent-2);">奶酪大盜</h3>
+            <p>有一個玩家會擔任奶酪大盜，要在遊戲中偷走奶酪小物。</p>
+          </div>
+          <div class="role-intro-card">
+            <img src="picture/貪睡鼠.png" alt="貪睡鼠">
+            <h3 style="color:#7dd3fc;">貪睡鼠</h3>
+            <p>其他玩家會擔任貪睡鼠，沒有能力，只能用推理的去找出誰是奶酪大盜。</p>
+          </div>
+          <div class="role-intro-card">
+            <img src="picture/背鍋鼠.png" alt="背鍋鼠">
+            <h3 style="color:#c084fc;">背鍋鼠</h3>
+            <p>特殊角色，只適用於 6-8 人遊戲，建議玩過基本版再加入這個角色。沒有特殊能力，但勝利目標是成為票選最高票。不論在各種情況下，背鍋鼠只要獲得最高票，就獨自勝利。</p>
+          </div>
+        </div>
+        <div style="text-align:center; margin-top:16px;">
+          <button class="btn secondary" id="backHomeBtn">返回首頁</button>
+        </div>
+      </div>
+    `);
+    document.getElementById("backHomeBtn").onclick = screenHome;
+  }
+
+  // ---------- Screen: Rules ----------
+  function screenRules(){
+    render(`
+      <div class="screen" style="text-align:left; max-width:720px;">
+        <h2 style="text-align:center;">📖 遊戲規則介紹</h2>
+        <p><strong>遊戲流程</strong><br>
+        抽取角色卡 → 確認角色 → 黑夜 → 白天 → 投票 → 公布勝負結果。</p>
+        <p><strong>基本角色</strong><br>
+        牌組只有兩種身分：1 張奶酪大盜、其餘皆為貪睡鼠。<strong>共犯其實就是貪睡鼠變成的</strong>，會在黑夜中依人數規則產生。</p>
+        <p><strong>各人數設置</strong><br>
+        5 人局：1 大盜 + 4 貪睡鼠 + 0~1 位共犯（依黑夜巧合產生）。<br>
+        6 人局：1 大盜 + 4 貪睡鼠 + 1 位共犯（大盜第 6 回合後指定）。<br>
+        7 人局：1 大盜 + 4 貪睡鼠 + 2 位共犯（大盜第 6 回合後指定，共犯間相認但不知道大盜是誰）。<br>
+        8 人局：1 大盜 + 5 貪睡鼠 + 2 位共犯（大盜第 6 回合後指定，大盜與共犯彼此相認）。</p>
+        <p><strong>黑夜階段</strong><br>
+        系統依序公告 1 到 6 點，骰子點數相同的玩家會私下收到提示：<br>
+        • 若你是貪睡鼠且<strong>只有你一人</strong>睜眼：可以查看任意一位其他玩家的骰子點數。<br>
+        • 若你是貪睡鼠且<strong>有其他貪睡鼠一起</strong>睜眼：只能互相確認彼此是好人，<strong>不能</strong>偷看骰子。<br>
+        • 若你是<strong>奶酪大盜</strong>：不論是否有人同時睜眼，都必須默默拿走奶酪。<br>
+        （5 人局：若有貪睡鼠與大盜同時睜眼，該玩家自動成為共犯；若有 2 位以上，大盜指定其中一位。）</p>
+        <p><strong>白天討論與投票</strong><br>
+        黑夜結束後公布奶酪是否被偷。玩家自由討論、互相嘴砲（不能看骰盅、不能翻開身分卡），時間到後每人各自在自己裝置上投票給懷疑的對象（不可投給自己）。</p>
+        <p><strong>勝負判定</strong><br>
+        若最高票不只一人，所有平票玩家都要翻開身分卡。翻開的身分卡中<strong>只要出現奶酪大盜</strong>，貪睡鼠陣營獲勝；<strong>完全沒有奶酪大盜</strong>，則大盜與其共犯獲勝。</p>
+        <div style="text-align:center; margin-top:16px;">
+          <button class="btn secondary" id="backHomeBtn">返回首頁</button>
+        </div>
+      </div>
+    `);
+    document.getElementById("backHomeBtn").onclick = screenHome;
+  }
+
+  // ---------- Screen: Create Room ----------
+  function screenCreateRoom(){
+    let isPublic = true;
+    render(`
+      <div class="screen">
+        <h2>🎲 創建遊戲</h2>
+        <p>房間類型</p>
+        <div class="toggle-group">
+          <button type="button" id="publicBtn" class="active">公開房間</button>
+          <button type="button" id="privateBtn">非公開房間</button>
+        </div>
+        <div id="passwordArea" class="hidden">
+          <input type="password" id="roomPasswordInput" placeholder="設定房間密碼" maxlength="40">
+        </div>
+        <div class="error-text" id="createError"></div>
+        <div>
+          <button class="btn" id="confirmCreateBtn">確認建立</button>
+          <button class="btn secondary" id="backHomeBtn">返回</button>
+        </div>
+      </div>
+    `);
+    lastErrorTarget = "createError";
+
+    const publicBtn = document.getElementById("publicBtn");
+    const privateBtn = document.getElementById("privateBtn");
+    const passwordArea = document.getElementById("passwordArea");
+
+    publicBtn.onclick = () => {
+      isPublic = true;
+      publicBtn.classList.add("active");
+      privateBtn.classList.remove("active");
+      passwordArea.classList.add("hidden");
+    };
+    privateBtn.onclick = () => {
+      isPublic = false;
+      privateBtn.classList.add("active");
+      publicBtn.classList.remove("active");
+      passwordArea.classList.remove("hidden");
+    };
+
+    document.getElementById("backHomeBtn").onclick = screenHome;
+
+    document.getElementById("confirmCreateBtn").onclick = () => {
+      let password = "";
+      if(!isPublic){
+        password = document.getElementById("roomPasswordInput").value.trim();
+        if(!password){
+          document.getElementById("createError").textContent = "非公開房間請設定密碼";
+          return;
+        }
+      }
+      sendMsg("createRoom", { playerName: state.playerName, isPublic, password });
+    };
+  }
+
+  // ---------- Screen: Join List ----------
+  function screenJoinList(rooms){
+    render(`
+      <div class="screen">
+        <h2>🚪 加入遊戲</h2>
+        <p>請從房間列表中選擇想加入的房間，或直接輸入房號</p>
+        <div>
+          <input type="text" id="directCodeInput" placeholder="輸入房號" maxlength="3">
+          <button class="btn secondary" id="findBtn">尋找房號</button>
+        </div>
+        <div class="room-list" id="roomList">
+          ${(!rooms || rooms.length === 0)
+            ? `<div class="empty-hint">目前沒有已建立的房間，可請房主提供房號直接加入。</div>`
+            : rooms.map(r => `
+              <div class="room-card" data-code="${r.code}" data-public="${r.isPublic ? "1" : "0"}">
+                <div>
+                  <span class="room-code-small">#${padCode(r.code)}</span>
+                  <div class="room-tag">${r.isPublic ? "🌐 公開" : "🔒 非公開"}　${r.currentPlayers}/${r.maxPlayers} 人</div>
+                </div>
+                <span>➡️</span>
+              </div>
+            `).join("")}
+        </div>
+        <div id="joinPasswordArea"></div>
+        <div class="error-text" id="joinListError"></div>
+        <div>
+          <button class="btn secondary" id="refreshBtn">重新整理</button>
+          <button class="btn secondary" id="backHomeBtn">返回大廳</button>
+        </div>
+      </div>
+    `);
+    lastErrorTarget = "joinListError";
+
+    document.getElementById("refreshBtn").onclick = () => sendMsg("listRooms");
+    document.getElementById("backHomeBtn").onclick = screenHome;
+    document.getElementById("findBtn").onclick = () => {
+      const code = parseInt(document.getElementById("directCodeInput").value, 10);
+      if(isNaN(code) || code < 1 || code > 999){
+        document.getElementById("joinListError").textContent = "請輸入 1-999 的房號";
+        return;
+      }
+      promptJoinPassword(code);
+    };
+
+    document.querySelectorAll(".room-card").forEach(card => {
+      card.onclick = () => {
+        const code = parseInt(card.dataset.code, 10);
+        const isPublic = card.dataset.public === "1";
+        promptJoinPassword(code, isPublic);
+      };
+    });
+  }
+
+  function promptJoinPassword(code, isPublic){
+    const area = document.getElementById("joinPasswordArea");
+    area.innerHTML = isPublic
+      ? `<div><button class="btn" id="doJoinBtn">加入房間 #${padCode(code)}</button></div>`
+      : `
+        <p>房間 #${padCode(code)} 需要密碼（若為公開房間可留空）</p>
+        <input type="password" id="joinPasswordInput" placeholder="房間密碼（如有）">
+        <div><button class="btn" id="doJoinBtn">加入房間</button></div>
+      `;
+    document.getElementById("doJoinBtn").onclick = () => {
+      const pwInput = document.getElementById("joinPasswordInput");
+      const password = pwInput ? pwInput.value : "";
+      sendMsg("joinRoom", { code, password, playerName: state.playerName });
+    };
+  }
+
+  // ---------- Screen: Room Lobby ----------
+  function screenRoomLobby(){
+    const room = state.room;
+    const count = room.players.length;
+    const canStart = count >= room.minPlayers && count <= room.maxPlayers;
+    render(`
+      <div class="screen">
+        <h2>房間大廳</h2>
+        <div class="room-code">#${padCode(room.code)}</div>
+        <p>${room.isPublic ? "🌐 公開房間" : "🔒 非公開房間"}　｜　${count}/${room.maxPlayers} 人（最少 ${room.minPlayers} 人可開始）</p>
+        <div class="player-list">
+          ${room.players.map(p => `
+            <div class="player-chip">
+              <span>${escapeHtml(p.name)}${p.id === state.yourId ? "（你）" : ""}</span>
+              <span class="tag">${p.id === room.hostId ? "👑 房主" : (p.connected ? "已連線" : "已離線")}</span>
+            </div>
+          `).join("")}
+        </div>
+        <div class="error-text" id="lobbyError"></div>
+        ${state.isHost
+          ? `<button class="btn" id="startGameBtn" ${canStart ? "" : "disabled"}>開始遊戲${canStart ? "" : `（至少需 ${room.minPlayers} 人）`}</button>`
+          : `<p>等待房主開始遊戲...</p>`}
+        <div><button class="btn secondary" id="leaveBtn">離開房間</button></div>
+      </div>
+    `);
+    lastErrorTarget = "lobbyError";
+    const startBtn = document.getElementById("startGameBtn");
+    if(startBtn) startBtn.onclick = () => sendMsg("startGame");
+    document.getElementById("leaveBtn").onclick = () => {
+      sendMsg("leaveRoom");
+      state.room = null;
+      screenHome();
+    };
+  }
+
+  // ---------- Screen: Role confirm ----------
+  function screenRoleConfirm(){
+    const roleClass = state.myRole === ROLE.THIEF ? "thief" : "mouse";
+    const img = ROLE_IMAGE[state.myRole];
+    render(`
+      <div class="screen">
+        <h2>👀 你的身分</h2>
+        <p>請確認自己的裝置畫面，勿讓其他人看到</p>
+        <div class="reveal-box">
+          ${img ? `<img class="role-card-img" src="${img}" alt="${state.myRole}">` : ""}
+          <div class="role-name ${roleClass}">${state.myRole}</div>
+          <div class="dice">🎲 骰子點數：${state.myDice}</div>
+          <p style="color:var(--text-dim); margin:6px 0 0;">${state.myRole === ROLE.THIEF ? "（大盜固定於黑夜第 1 回合睜眼）" : "請記住你的睜眼回合數"}</p>
+        </div>
+        <button class="btn" id="readyBtn">我準備好了</button>
+        <p id="readyProgressText">等待其他玩家確認...</p>
+      </div>
+    `);
+    document.getElementById("readyBtn").onclick = () => {
+      sendMsg("ackReady");
+      document.getElementById("readyBtn").disabled = true;
+    };
+  }
+
+  function updateReadyProgress(readyCount, total){
+    const el = document.getElementById("readyProgressText");
+    if(el) el.textContent = `已準備：${readyCount}/${total}`;
+  }
+
+  // ---------- Screen: Night ----------
+  function screenNight(round){
+    state.currentNightRound = round;
+    render(`
+      <div class="screen night-screen">
+        <div class="moon">🌙</div>
+        <h2>黑夜降臨...請關閉螢幕或放下裝置</h2>
+        <div class="round-counter">第 ${round} 回合</div>
+        <p>系統正在自動處理睜眼順序，請保持安靜等待...</p>
+      </div>
+    `);
+  }
+
+  function handleNightAction(msg){
+    if(msg.action === "steal"){
+      render(`
+        <div class="screen night-screen">
+          <div class="moon">🌙</div>
+          <h2>🧀 你是奶酪大盜</h2>
+          <p>你必須默默拿走奶酪，其他人請閉眼。</p>
+          <button class="btn" id="continueBtn">確認</button>
+        </div>
+      `);
+      document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
+    } else if(msg.action === "mutual"){
+      render(`
+        <div class="screen night-screen">
+          <div class="moon">🌙</div>
+          <h2>🤝 互相確認</h2>
+          <p>以下玩家與你同時睜眼，請互相確認彼此是好人丙伴（不能查看髈子）：</p>
+          <p style="color:var(--accent);">${msg.names.map(escapeHtml).join("、")}</p>
+          <button class="btn" id="continueBtn">確認</button>
+        </div>
+      `);
+      document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
+    } else if(msg.action === "peekPrompt"){
+      render(`
+        <div class="screen night-screen">
+          <h2>👁️ 你獨自睜眼</h2>
+          <p>可以查看一位玩家的髈子點數：</p>
+          <div class="vote-grid">
+            ${msg.targets.map(t => `<button class="btn secondary" data-target="${t.id}">${escapeHtml(t.name)}</button>`).join("")}
+          </div>
+        </div>
+      `);
+      document.querySelectorAll("#app .vote-grid button").forEach(btn => {
+        btn.onclick = () => {
+          sendMsg("peekChoose", { targetId: parseInt(btn.dataset.target, 10) });
+          document.querySelectorAll("#app .vote-grid button").forEach(b => b.disabled = true);
+        };
+      });
+    }
+  }
+
+  function showPeekResult(msg){
+    render(`
+      <div class="screen night-screen">
+        <div class="reveal-box">
+          <p>${escapeHtml(msg.targetName)} 的髈子點數是：</p>
+          <div class="dice">🎲 ${msg.dice}</div>
+        </div>
+        <button class="btn" id="continueBtn">確認已記住</button>
+      </div>
+    `);
+    document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
+  }
+
+  function showChooseAccomplice(candidates){
+    render(`
+      <div class="screen night-screen">
+        <h2>🧀 指定共犯</h2>
+        <p>有多位貪睡鼠與你同時睜眼，請指定其中一位成為你的共犯：</p>
+        <div class="vote-grid">
+          ${candidates.map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
+        </div>
+      </div>
+    `);
+    document.querySelectorAll("#app .vote-grid button").forEach(btn => {
+      btn.onclick = () => {
+        sendMsg("chooseAccomplice", { targetId: parseInt(btn.dataset.target, 10) });
+        document.querySelectorAll("#app .vote-grid button").forEach(b => b.disabled = true);
+      };
+    });
+  }
+
+  function showAssignAccomplice(required, candidates){
+    let chosen = [];
+    function renderAssign(){
+      render(`
+        <div class="screen night-screen">
+          <h2>🧀 指定共犯</h2>
+          <p>請秘密指定 ${required} 名共犯（已選 ${chosen.length}/${required}）：</p>
+          <div class="vote-grid">
+            ${candidates.filter(c => !chosen.includes(c.id)).map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
+          </div>
+        </div>
+      `);
+      document.querySelectorAll("#app .vote-grid button").forEach(btn => {
+        btn.onclick = () => {
+          chosen.push(parseInt(btn.dataset.target, 10));
+          if(chosen.length >= required){
+            sendMsg("assignAccomplice", { targetIds: chosen });
+            render(`<div class="screen night-screen"><p>已送出，請閉眼等待...</p></div>`);
+          } else {
+            renderAssign();
+          }
+        };
+      });
+    }
+    renderAssign();
+  }
+
+  function showAccompliceReveal(thiefName, partners){
+    render(`
+      <div class="screen night-screen">
+        <h2>🤝 共犯相認</h2>
+        <div class="reveal-box">
+          <div class="role-name accomplice">你是共犯</div>
+          ${thiefName ? `<p>大盜是：${escapeHtml(thiefName)}</p>` : `<p>你不知道誰是大盜</p>`}
+          ${partners && partners.length ? `<p>你的共犯夥伴：${partners.map(escapeHtml).join("、")}</p>` : ""}
+        </div>
+        <button class="btn" id="continueBtn">確認已記住</button>
+      </div>
+    `);
+    document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
+  }
+
+  // ---------- Screen: Day & Vote ----------
+  function screenDayVote(stolen){
+    const room = state.room;
+    const stolenMsg = stolen ? "黑夜結束！奶酪不見了！" : "黑夜結束！奶酪竟然安然無恙！";
+    render(`
+      <div class="screen">
+        <div class="day-banner">☀️ ${stolenMsg}</div>
+        <p>請所有玩家開始自由討論（建議計時 3 分鐘），討論結束後進行投票。</p>
+        <h2>請投出你懷疑的對象</h2>
+        <div class="vote-status" id="voteStatus">投票進度：0/${room.players.length}</div>
+        <div class="vote-grid" id="voteGrid">
+          ${room.players.map(p => `
+            <button class="btn ${p.id === state.yourId ? 'secondary' : ''}" data-target="${p.id}" ${p.id === state.yourId ? 'disabled title="不能投給自己"' : ''}>
+              ${escapeHtml(p.name)}
+            </button>
+          `).join("")}
+        </div>
+        <p id="votedHint" class="hidden">你已投票，請等待其他玩家。</p>
+      </div>
+    `);
+
+    document.querySelectorAll("#voteGrid button").forEach(btn => {
+      btn.onclick = () => {
+        if(state.hasVoted) return;
+        const targetId = parseInt(btn.dataset.target, 10);
+        state.hasVoted = true;
+        sendMsg("vote", { targetId });
+        document.querySelectorAll("#voteGrid button").forEach(b => b.disabled = true);
+        document.getElementById("votedHint").classList.remove("hidden");
+      };
+    });
+  }
+
+  function updateVoteProgress(votedCount, total){
+    const el = document.getElementById("voteStatus");
+    if(el) el.textContent = `投票進度：${votedCount}/${total}`;
+  }
+
+  // ---------- Screen: Game Over ----------
+  function screenGameOver(msg){
+    const bannerClass = msg.mouseWin ? "mouse-win" : "thief-win";
+    const bannerText = msg.mouseWin
+      ? "🎉 貪睡鼠陣營獲勝！大盜被抓到了！"
+      : "🐀 大盜陣營獲勝！大盜與共犯成功逃脫！";
+
+    const roleOrder = { [ROLE.THIEF]: 0, "共犯": 1, [ROLE.MOUSE]: 2 };
+    const sorted = msg.players.slice().sort((a,b) => roleOrder[a.role] - roleOrder[b.role] || a.id - b.id);
+    const topNames = msg.topIds.map(id => (msg.players.find(p => p.id === id) || {}).name).map(escapeHtml).join("、");
+
+    render(`
+      <div class="screen">
+        <h1>遊戲結束</h1>
+        <div class="winner-banner ${bannerClass}">${bannerText}</div>
+        <p>翻開最高票玩家：${topNames}（${msg.tally[msg.topIds[0]]} 票）${msg.topIds.length > 1 ? " — 平票，全部翻開" : ""}</p>
+        <table class="result-table">
+          <thead><tr><th>玩家</th><th>角色</th><th>骰子點數</th><th>得票</th></tr></thead>
+          <tbody>
+            ${sorted.map(p => `
+              <tr>
+                <td>${escapeHtml(p.name)}</td>
+                <td>${p.role}</td>
+                <td>${p.dice}</td>
+                <td>${p.votes}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        <div class="log-box">${(msg.log || []).map(l => `<div>${escapeHtml(l)}</div>`).join("")}</div>
+        <div style="margin-top:20px;">
+          <button class="btn" id="backHomeBtn">返回大廳</button>
+        </div>
+      </div>
+    `);
+    document.getElementById("backHomeBtn").onclick = () => {
+      sendMsg("leaveRoom");
+      state.room = null;
+      screenHome();
+    };
+  }
+
+  // Init
+  connect();
+  screenHome();
+})();
+</script>
+</body>
+</html>
