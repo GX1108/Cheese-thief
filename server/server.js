@@ -13,6 +13,7 @@ const CONFIRM_PHASE_MS = 15000;
 const NIGHT_ROUND_MS = 15000;
 const SOLO_PEEK_TIMEOUT_MS = 15000;
 const PHASE_TRANSITION_MS = 2500;
+const THIEF_REVEAL_MS = 5000;
 
 const ROLE = {
   THIEF: "奶酪大盜",
@@ -184,23 +185,33 @@ function nightTick(room) {
   broadcast(room, "nightRound", { round, durationMs: NIGHT_ROUND_MS });
 
   if (thief) {
-    room.stolen = true;
-    room.log.push(`第 ${round} 回合：奶酪大盜睜眼，奶酪已被偷走。`);
+    room.log.push(`第 ${round} 回合：奶酪大盜睜眼。`);
+    setTimeout(() => {
+      if (room.status !== "night" || room.nightRound !== round) return;
+      room.stolen = true;
+      room.log.push(`第 ${round} 回合：奶酪已被偷走。`);
+    }, THIEF_REVEAL_MS);
     send(thief.ws, "nightAction", {
-      action: "steal",
+      action: "thiefRound",
+      isThief: true,
       round,
+      timeoutMs: NIGHT_ROUND_MS,
+      revealDelayMs: THIEF_REVEAL_MS,
+      thiefName: thief.name,
       companions: wakingNames.filter(name => name !== thief.name),
-      cheeseTaken: true
+      cheeseTaken: false
     });
 
     mice.forEach(mouse => {
       send(mouse.ws, "nightAction", {
-        action: "witnessThief",
+        action: "thiefRound",
+        isThief: false,
         round,
+        timeoutMs: NIGHT_ROUND_MS,
         companions: wakingNames.filter(name => name !== mouse.name),
         thiefName: thief.name,
-        revealDelayMs: 3000,
-        cheeseTaken: true
+        revealDelayMs: THIEF_REVEAL_MS,
+        cheeseTaken: false
       });
     });
 
@@ -213,7 +224,9 @@ function nightTick(room) {
         room.pendingAction = { type: "accomplice-choice", thiefId: thief.id, candidateIds: coincident.map(m => m.id) };
         send(thief.ws, "chooseAccomplicePrompt", {
           round,
-          revealDelayMs: 3000,
+          timeoutMs: NIGHT_ROUND_MS,
+          revealDelayMs: THIEF_REVEAL_MS,
+          thiefName: thief.name,
           companions: wakingNames.filter(name => name !== thief.name),
           candidates: coincident.map(m => ({ id: m.id, name: m.name }))
         });
@@ -230,6 +243,7 @@ function nightTick(room) {
       send(m.ws, "nightAction", {
         action: "mutual",
         round,
+        timeoutMs: NIGHT_ROUND_MS,
         names: mice.filter(x => x.id !== m.id).map(x => x.name),
         cheeseTaken: room.stolen
       });
@@ -253,7 +267,7 @@ function nightTick(room) {
       if (!room.pendingAction || room.pendingAction.type !== "peek" || room.pendingAction.mouseId !== mouse.id) return;
       room.log.push(`第 ${round} 回合：${mouse.name} 未在時限內查看骰子，直接略過。`);
       room.pendingAction = null;
-      scheduleNextNightStep(room);
+      proceedToNextNightStepImmediately(room);
     }, SOLO_PEEK_TIMEOUT_MS);
     return; // wait for peek choice
   }
@@ -274,6 +288,19 @@ function scheduleNextNightStep(room) {
     }, NIGHT_ROUND_MS);
   } else {
     room.nightTimer = setTimeout(() => nightTick(room), NIGHT_ROUND_MS);
+  }
+}
+
+function proceedToNextNightStepImmediately(room) {
+  clearRoomTimer(room);
+  if (room.nightRound >= 6) {
+    if (room.accompliceStepDone) {
+      startDayPhase(room);
+    } else {
+      beginAccompliceAssignment(room);
+    }
+  } else {
+    nightTick(room);
   }
 }
 

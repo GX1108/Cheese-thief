@@ -836,48 +836,36 @@
 
   function handleNightAction(msg){
     clearUiTimers();
-    if(msg.action === "steal"){
+    if(msg.action === "thiefRound"){
       setView("nightAction");
       const timeoutMs = msg.timeoutMs || 15000;
+      const revealDelayMs = msg.revealDelayMs || 5000;
+      const companionText = (msg.companions && msg.companions.length)
+        ? msg.companions.map(escapeHtml).join("、")
+        : "無";
       render(`
         <div class="screen night-screen">
           <div class="moon">🌙</div>
           <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
-          <p>你是奶酪大盜，請默默拿走奶酪。</p>
-          ${msg.companions && msg.companions.length ? `<p>這回合和你一起睜眼的人：${msg.companions.map(escapeHtml).join("、")}</p>` : `<p>這回合只有你睜眼。</p>`}
-          ${renderCheeseStatus(true)}
+          <p>${msg.isThief ? "你是奶酪大盜。" : "你和其他玩家同時睜眼。"}</p>
+          <p>這回合和你一起睜眼的人：${companionText}</p>
           ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 15 秒")}
+          <div id="thiefRoundStatus">
+            ${renderCheeseStatus(false)}
+            <p>奶酪目前還在。</p>
+          </div>
           <button class="btn" id="continueBtn">確認</button>
         </div>
       `);
       startCountdown(timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
-      document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
-    } else if(msg.action === "witnessThief"){
-      setView("nightAction");
-      const timeoutMs = msg.timeoutMs || 15000;
-      render(`
-        <div class="screen night-screen">
-          <div class="moon">🌙</div>
-          <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
-          <p>這回合和你一起睜眼的人：${msg.companions.map(escapeHtml).join("、")}</p>
-          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 15 秒")}
-          <div id="thiefRevealBox">
-            <p>請先觀察同時睜眼的人...</p>
-          </div>
-        </div>
-      `);
-      startCountdown(timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
       setTimeout(() => {
-        const box = document.getElementById("thiefRevealBox");
+        const box = document.getElementById("thiefRoundStatus");
         if (!box) return;
-        box.innerHTML = `
-          ${renderCheeseStatus(true)}
-          <div class="reveal-box">
-            <p>偷走奶酪的人是：</p>
-            <div class="role-name thief">${escapeHtml(msg.thiefName)}</div>
-          </div>
-        `;
-      }, msg.revealDelayMs || 3000);
+        box.innerHTML = msg.isThief
+          ? `${renderCheeseStatus(true)}<p>奶酪被我偷走了。</p>`
+          : `${renderCheeseStatus(true)}<p>奶酪被 ${escapeHtml(msg.thiefName)} 偷走了。</p>`;
+      }, revealDelayMs);
+      document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
     } else if(msg.action === "mutual"){
       setView("nightAction");
       const timeoutMs = msg.timeoutMs || 15000;
@@ -939,27 +927,34 @@
   function showChooseAccomplice(msg){
     clearUiTimers();
     setView("nightAction");
-    const revealDelayMs = msg.revealDelayMs || 3000;
+    const revealDelayMs = msg.revealDelayMs || 5000;
+    const timeoutMs = msg.timeoutMs || 15000;
     render(`
       <div class="screen night-screen">
         <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
         <p>這回合和你一起睜眼的人：${(msg.companions || []).map(escapeHtml).join("、")}</p>
+        ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘 15 秒")}
         <div id="chooseAccompliceIntro">
-          ${renderCheeseStatus(true)}
-          <p>先讓所有同時睜眼的人確認奶酪已被偷走...</p>
+          ${renderCheeseStatus(false)}
+          <p>先讓所有同時睜眼的人確認奶酪還在...</p>
         </div>
       </div>
     `);
-    uiTimer = setTimeout(() => {
+    startCountdown(timeoutMs, "chooseCountdown", "chooseCountdownBar", "本回合結束");
+    setTimeout(() => {
+      const remainingMs = Math.max(1000, timeoutMs - revealDelayMs);
       render(`
         <div class="screen night-screen">
           <h2>🧀 指定共犯</h2>
+          <p>奶酪已被 ${escapeHtml((msg.thiefName || "奶酪大盜"))} 偷走。</p>
+          ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘時間")}
           <p>有多位貪睡鼠與你同時睜眼，請指定其中一位成為你的共犯：</p>
           <div class="vote-grid">
             ${msg.candidates.map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
           </div>
         </div>
       `);
+      startCountdown(remainingMs, "chooseCountdown", "chooseCountdownBar", "本回合結束");
       document.querySelectorAll("#app .vote-grid button").forEach(btn => {
         btn.onclick = () => {
           clearUiTimers();
