@@ -9,9 +9,9 @@ const WebSocket = require("ws");
 const PORT = process.env.PORT || 8080;
 const MIN_PLAYERS = 5;
 const MAX_PLAYERS = 8;
-const CONFIRM_PHASE_MS = 15000;
-const NIGHT_ROUND_MS = 15000;
-const SOLO_PEEK_TIMEOUT_MS = 15000;
+const CONFIRM_PHASE_MS = 20000;
+const NIGHT_ROUND_MS = 20000;
+const SOLO_PEEK_TIMEOUT_MS = 20000;
 const PHASE_TRANSITION_MS = 2500;
 const THIEF_REVEAL_MS = 5000;
 

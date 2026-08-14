@@ -402,7 +402,7 @@
         showError(msg.message);
         break;
       case "phaseChange":
-        if(msg.phase === "confirm") screenRoleConfirm(msg.durationMs || 15000);
+        if(msg.phase === "confirm") screenRoleConfirm(msg.durationMs || 20000);
         break;
       case "roleAssigned":
         state.myRole = msg.role;
@@ -414,7 +414,7 @@
         break;
       case "nightRound":
         playCue("round");
-        screenNight(msg.round, msg.durationMs || 15000);
+        screenNight(msg.round, msg.durationMs || 20000);
         break;
       case "nightAction":
         handleNightAction(msg);
@@ -426,7 +426,7 @@
         showChooseAccomplice(msg);
         break;
       case "assignAccomplicePrompt":
-        showAssignAccomplice(msg.required, msg.candidates);
+        showAssignAccomplice(msg.required, msg.candidates, msg.timeoutMs || 20000);
         break;
       case "accompliceReveal":
         showAccompliceReveal(msg.thiefName, msg.partners);
@@ -735,16 +735,13 @@
           <div class="dice">🎲 骰子點數：${state.myDice}</div>
           <p style="color:var(--text-dim); margin:6px 0 0;">${state.myRole === ROLE.THIEF ? "（大盜會依你的骰子點數，在 1 到 6 的其中一回合睜眼）" : "請記住你的睜眼回合數"}</p>
         </div>
-        <button class="btn" id="readyBtn">我已看完</button>
-        <p id="readyProgressText">剩餘 15 秒，時間到會自動進入黑夜</p>
+        <p id="readyProgressText">剩餘 20 秒，時間到會自動進入黑夜</p>
       </div>
     `);
     const endAt = Date.now() + durationMs;
     const maskRoleCard = () => {
       const box = document.querySelector("#app .reveal-box");
-      const button = document.getElementById("readyBtn");
       if (box) box.innerHTML = `<p>已確認，請將裝置放下並等待黑夜開始。</p>`;
-      if (button) button.disabled = true;
     };
     const updateCountdown = () => {
       const remainMs = Math.max(0, endAt - Date.now());
@@ -762,9 +759,6 @@
       clearUiTimers();
     }, durationMs);
     updateCountdown();
-    document.getElementById("readyBtn").onclick = () => {
-      maskRoleCard();
-    };
   }
 
   function updateReadyProgress(readyCount, total){
@@ -782,28 +776,25 @@
         <div class="moon">🌙</div>
         <h2>黑夜降臨...請關閉螢幕或放下裝置</h2>
         <div class="round-counter">第 ${round} 回合</div>
-        <p>本回合保留 15 秒給對應玩家確認與操作，請保持安靜等待...</p>
-        ${renderCountdownBox("nightCountdownText", "nightCountdownBar", "剩餘 15 秒")}
+        <p>本回合保留 20 秒給對應玩家確認與操作，請保持安靜等待...</p>
+        ${renderCountdownBox("nightCountdownText", "nightCountdownBar", "剩餘 20 秒")}
       </div>
     `);
-    startCountdown(durationMs || 15000, "nightCountdownText", "nightCountdownBar", "本回合結束");
+    startCountdown(durationMs || 20000, "nightCountdownText", "nightCountdownBar", "本回合結束");
   }
 
-  function renderCheeseStatus(cheeseTaken){
-    if (cheeseTaken) {
-      return `
-        <div class="cheese-status-card missing">
-          <div class="cheese-status-emoji">🧀❌</div>
-          <div>奶酪已經不見了</div>
-        </div>
-      `;
-    }
+  function renderCheeseStatus(){
     return `
-      <div class="cheese-status-card safe">
-        <div class="cheese-status-emoji">🧀</div>
-        <div>奶酪還在</div>
+      <div class="cheese-status-card missing">
+        <div class="cheese-status-emoji">🧀❌</div>
+        <div>奶酪已經不見了</div>
       </div>
     `;
+  }
+
+  function renderCoWakeLines(names){
+    if (!names || names.length === 0) return `<p>這回合只有你睜眼。</p>`;
+    return names.map(name => `<p>${escapeHtml(name)} 這回合與你一起睜眼</p>`).join("");
   }
 
   function renderCountdownBox(textId, barId, initialText){
@@ -838,21 +829,17 @@
     clearUiTimers();
     if(msg.action === "thiefRound"){
       setView("nightAction");
-      const timeoutMs = msg.timeoutMs || 15000;
+      const timeoutMs = msg.timeoutMs || 20000;
       const revealDelayMs = msg.revealDelayMs || 5000;
-      const companionText = (msg.companions && msg.companions.length)
-        ? msg.companions.map(escapeHtml).join("、")
-        : "無";
       render(`
         <div class="screen night-screen">
           <div class="moon">🌙</div>
           <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
           <p>${msg.isThief ? "你是奶酪大盜。" : "你和其他玩家同時睜眼。"}</p>
-          <p>這回合和你一起睜眼的人：${companionText}</p>
-          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 15 秒")}
+          ${renderCoWakeLines(msg.companions)}
+          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 20 秒")}
           <div id="thiefRoundStatus">
-            ${renderCheeseStatus(false)}
-            <p>奶酪目前還在。</p>
+            <p>等待偷走奶酪...</p>
           </div>
           <button class="btn" id="continueBtn">確認</button>
         </div>
@@ -862,22 +849,21 @@
         const box = document.getElementById("thiefRoundStatus");
         if (!box) return;
         box.innerHTML = msg.isThief
-          ? `${renderCheeseStatus(true)}<p>奶酪被我偷走了。</p>`
-          : `${renderCheeseStatus(true)}<p>奶酪被 ${escapeHtml(msg.thiefName)} 偷走了。</p>`;
+          ? `${renderCheeseStatus()}<p>奶酪被我偷走了。</p>`
+          : `${renderCheeseStatus()}<p>奶酪被 ${escapeHtml(msg.thiefName)} 偷走了。</p>`;
       }, revealDelayMs);
       document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
     } else if(msg.action === "mutual"){
       setView("nightAction");
-      const timeoutMs = msg.timeoutMs || 15000;
+      const timeoutMs = msg.timeoutMs || 20000;
       render(`
         <div class="screen night-screen">
           <div class="moon">🌙</div>
           <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
-          ${renderCheeseStatus(!!msg.cheeseTaken)}
+          ${renderCheeseStatus()}
           <h2>🤝 互相確認</h2>
-          <p>以下玩家與你同時睜眼，請互相確認彼此是好人丙伴（不能查看髈子）：</p>
-          <p style="color:var(--accent);">${msg.names.map(escapeHtml).join("、")}</p>
-          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 15 秒")}
+          ${renderCoWakeLines(msg.names)}
+          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 20 秒")}
           <button class="btn" id="continueBtn">確認</button>
         </div>
       `);
@@ -885,14 +871,14 @@
       document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
     } else if(msg.action === "peekPrompt"){
       setView("nightAction");
-      const timeoutMs = msg.timeoutMs || 15000;
+      const timeoutMs = msg.timeoutMs || 20000;
       render(`
         <div class="screen night-screen">
           <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
-          ${renderCheeseStatus(!!msg.cheeseTaken)}
+          ${renderCheeseStatus()}
           <h2>👁️ 你獨自睜眼</h2>
-          <p>可以查看一位玩家的髈子點數；15 秒內未選擇會自動略過：</p>
-          ${renderCountdownBox("peekCountdown", "peekCountdownBar", "剩餘 15 秒")}
+          <p>可以查看一位玩家的髈子點數；20 秒內未選擇會自動略過：</p>
+          ${renderCountdownBox("peekCountdown", "peekCountdownBar", "剩餘 20 秒")}
           <div class="vote-grid">
             ${msg.targets.map(t => `<button class="btn secondary" data-target="${t.id}">${escapeHtml(t.name)}</button>`).join("")}
           </div>
@@ -928,15 +914,14 @@
     clearUiTimers();
     setView("nightAction");
     const revealDelayMs = msg.revealDelayMs || 5000;
-    const timeoutMs = msg.timeoutMs || 15000;
+    const timeoutMs = msg.timeoutMs || 20000;
     render(`
       <div class="screen night-screen">
         <h2>第 ${msg.round} 回合，現在輪到你睜眼</h2>
-        <p>這回合和你一起睜眼的人：${(msg.companions || []).map(escapeHtml).join("、")}</p>
-        ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘 15 秒")}
+        ${renderCoWakeLines(msg.companions)}
+        ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘 20 秒")}
         <div id="chooseAccompliceIntro">
-          ${renderCheeseStatus(false)}
-          <p>先讓所有同時睜眼的人確認奶酪還在...</p>
+          <p>等待偷走奶酪...</p>
         </div>
       </div>
     `);
@@ -948,6 +933,7 @@
           <h2>🧀 指定共犯</h2>
           <p>奶酪已被 ${escapeHtml((msg.thiefName || "奶酪大盜"))} 偷走。</p>
           ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘時間")}
+          ${renderCoWakeLines(msg.companions)}
           <p>有多位貪睡鼠與你同時睜眼，請指定其中一位成為你的共犯：</p>
           <div class="vote-grid">
             ${msg.candidates.map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
@@ -965,7 +951,7 @@
     }, revealDelayMs);
   }
 
-  function showAssignAccomplice(required, candidates){
+  function showAssignAccomplice(required, candidates, timeoutMs){
     let chosen = [];
     clearUiTimers();
     setView("nightAction");
@@ -974,7 +960,7 @@
         <div class="screen night-screen">
           <h2>🧀 指定共犯</h2>
           <p>請秘密指定 ${required} 名共犯（已選 ${chosen.length}/${required}）：</p>
-          ${renderCountdownBox("assignCountdown", "assignCountdownBar", "剩餘 15 秒")}
+          ${renderCountdownBox("assignCountdown", "assignCountdownBar", "剩餘 20 秒")}
           <div class="vote-grid">
             ${candidates.filter(c => !chosen.includes(c.id)).map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
           </div>
@@ -992,7 +978,7 @@
           }
         };
       });
-      startCountdown(15000, "assignCountdown", "assignCountdownBar", "指定時間結束");
+      startCountdown(timeoutMs || 20000, "assignCountdown", "assignCountdownBar", "指定時間結束");
     }
     renderAssign();
   }
