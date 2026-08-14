@@ -200,11 +200,16 @@
     votedCount: 0,
     hasVoted: false,
     joinCode: "",
-    currentNightRound: 0
+    currentNightRound: 0,
+    currentView: "home",
+    pendingReplay: false
   };
 
   const app = document.getElementById("app");
   const connEl = document.getElementById("conn");
+  let uiTimer = null;
+  let uiInterval = null;
+  let audioCtx = null;
 
   const ROLE_IMAGE = {
     [ROLE.THIEF]: "picture/奶酪大盜.png",
@@ -216,6 +221,55 @@
     app.innerHTML = html;
     document.body.classList.toggle("home-bg", html.includes('id="createBtn"'));
   }
+
+  function setView(view){
+    state.currentView = view;
+  }
+
+  function clearUiTimers(){
+    clearTimeout(uiTimer);
+    clearInterval(uiInterval);
+    uiTimer = null;
+    uiInterval = null;
+  }
+
+  function ensureAudio(){
+    if (audioCtx) return audioCtx;
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return null;
+    audioCtx = new AudioCtor();
+    return audioCtx;
+  }
+
+  function unlockAudio(){
+    const ctx = ensureAudio();
+    if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+  }
+
+  function playCue(type){
+    const ctx = ensureAudio();
+    if (!ctx || ctx.state !== "running") return;
+    const now = ctx.currentTime;
+    const notes = type === "confirm"
+      ? [{ freq: 740, at: 0, len: 0.12 }, { freq: 988, at: 0.14, len: 0.16 }]
+      : [{ freq: 523, at: 0, len: 0.08 }, { freq: 659, at: 0.1, len: 0.08 }, { freq: 784, at: 0.2, len: 0.12 }];
+    notes.forEach(note => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = note.freq;
+      gain.gain.setValueAtTime(0.0001, now + note.at);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + note.at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + note.at + note.len);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + note.at);
+      osc.stop(now + note.at + note.len + 0.02);
+    });
+  }
+
+  ["pointerdown", "keydown", "touchstart"].forEach(eventName => {
+    window.addEventListener(eventName, unlockAudio, { passive: true });
+  });
 
   function escapeHtml(str){
     return String(str).replace(/[&<>"']/g, ch => ({
@@ -306,18 +360,22 @@
         state.room = msg.room;
         state.yourId = msg.yourId;
         state.isHost = state.room.hostId === state.yourId;
+        state.pendingReplay = false;
         screenRoomLobby();
         break;
       case "roomUpdate":
         state.room = msg.room;
         state.isHost = state.room.hostId === state.yourId;
-        if(state.room.status === "lobby") screenRoomLobby();
+        if(state.room.status === "lobby" && (state.currentView === "roomLobby" || state.pendingReplay)) {
+          state.pendingReplay = false;
+          screenRoomLobby();
+        }
         break;
       case "error":
         showError(msg.message);
         break;
       case "phaseChange":
-        if(msg.phase === "confirm") screenRoleConfirm();
+        if(msg.phase === "confirm") screenRoleConfirm(msg.durationMs || 15000);
         break;
       case "roleAssigned":
         state.myRole = msg.role;
@@ -328,6 +386,7 @@
         updateReadyProgress(msg.readyCount, msg.total);
         break;
       case "nightRound":
+        playCue("round");
         screenNight(msg.round);
         break;
       case "nightAction":
@@ -367,6 +426,8 @@
 
   // ---------- Screen: Home ----------
   function screenHome(){
+    clearUiTimers();
+    setView("home");
     render(`
       <button class="btn secondary corner-btn top-left" id="rolesBtn">👤 角色介紹</button>
       <button class="btn secondary corner-btn top-right" id="rulesBtn">📖 規則介紹</button>
@@ -401,6 +462,8 @@
 
   // ---------- Screen: Role Introduction ----------
   function screenRoleIntro(){
+    clearUiTimers();
+    setView("roleIntro");
     render(`
       <div class="screen" style="max-width:720px;">
         <h2>👤 角色介紹</h2>
@@ -431,6 +494,8 @@
 
   // ---------- Screen: Rules ----------
   function screenRules(){
+    clearUiTimers();
+    setView("rules");
     render(`
       <div class="screen" style="text-align:left; max-width:720px;">
         <h2 style="text-align:center;">📖 遊戲規則介紹</h2>
@@ -448,7 +513,7 @@
         • 若你是貪睡鼠且<strong>只有你一人</strong>睜眼：可以查看任意一位其他玩家的骰子點數。<br>
         • 若你是貪睡鼠且<strong>有其他貪睡鼠一起</strong>睜眼：只能互相確認彼此是好人，<strong>不能</strong>偷看骰子。<br>
         • 若你是<strong>奶酪大盜</strong>：不論是否有人同時睜眼，都必須默默拿走奶酪。<br>
-        （5 人局：若有貪睡鼠與大盜同時睜眼，該玩家自動成為共犯；若有 2 位以上，大盜指定其中一位。）</p>
+        （5 人局：若有貪睡鼠與大盜同時睜眼，該玩家自動成為共犯；若有 2 位以上，大盜指定其中一位；若無貪睡鼠與大盜同時睜眼，則該場無共犯。）</p>
         <p><strong>白天討論與投票</strong><br>
         黑夜結束後公布奶酪是否被偷。玩家自由討論、互相嘴砲（不能看骰盅、不能翻開身分卡），時間到後每人各自在自己裝置上投票給懷疑的對象（不可投給自己）。</p>
         <p><strong>勝負判定</strong><br>
@@ -463,6 +528,8 @@
 
   // ---------- Screen: Create Room ----------
   function screenCreateRoom(){
+    clearUiTimers();
+    setView("createRoom");
     let isPublic = true;
     render(`
       <div class="screen">
@@ -518,6 +585,8 @@
 
   // ---------- Screen: Join List ----------
   function screenJoinList(rooms){
+    clearUiTimers();
+    setView("joinList");
     render(`
       <div class="screen">
         <h2>🚪 加入遊戲</h2>
@@ -587,6 +656,8 @@
 
   // ---------- Screen: Room Lobby ----------
   function screenRoomLobby(){
+    clearUiTimers();
+    setView("roomLobby");
     const room = state.room;
     const count = room.players.length;
     const canStart = count >= room.minPlayers && count <= room.maxPlayers;
@@ -621,7 +692,10 @@
   }
 
   // ---------- Screen: Role confirm ----------
-  function screenRoleConfirm(){
+  function screenRoleConfirm(durationMs){
+    clearUiTimers();
+    setView("roleConfirm");
+    playCue("confirm");
     const roleClass = state.myRole === ROLE.THIEF ? "thief" : "mouse";
     const img = ROLE_IMAGE[state.myRole];
     render(`
@@ -634,13 +708,35 @@
           <div class="dice">🎲 骰子點數：${state.myDice}</div>
           <p style="color:var(--text-dim); margin:6px 0 0;">${state.myRole === ROLE.THIEF ? "（大盜會依你的骰子點數，在 1 到 6 的其中一回合睜眼）" : "請記住你的睜眼回合數"}</p>
         </div>
-        <button class="btn" id="readyBtn">我準備好了</button>
-        <p id="readyProgressText">等待其他玩家確認...</p>
+        <button class="btn" id="readyBtn">我已看完</button>
+        <p id="readyProgressText">剩餘 15 秒，時間到會自動進入黑夜</p>
       </div>
     `);
+    const endAt = Date.now() + durationMs;
+    const maskRoleCard = () => {
+      const box = document.querySelector("#app .reveal-box");
+      const button = document.getElementById("readyBtn");
+      if (box) box.innerHTML = `<p>已確認，請將裝置放下並等待黑夜開始。</p>`;
+      if (button) button.disabled = true;
+    };
+    const updateCountdown = () => {
+      const remainMs = Math.max(0, endAt - Date.now());
+      const remainSec = Math.ceil(remainMs / 1000);
+      const el = document.getElementById("readyProgressText");
+      if (el) el.textContent = remainSec > 0 ? `剩餘 ${remainSec} 秒，時間到會自動進入黑夜` : "即將進入黑夜...";
+      if (remainMs <= 0) {
+        maskRoleCard();
+        clearUiTimers();
+      }
+    };
+    uiInterval = setInterval(updateCountdown, 250);
+    uiTimer = setTimeout(() => {
+      maskRoleCard();
+      clearUiTimers();
+    }, durationMs);
+    updateCountdown();
     document.getElementById("readyBtn").onclick = () => {
-      sendMsg("ackReady");
-      document.getElementById("readyBtn").disabled = true;
+      maskRoleCard();
     };
   }
 
@@ -651,6 +747,8 @@
 
   // ---------- Screen: Night ----------
   function screenNight(round){
+    clearUiTimers();
+    setView("night");
     state.currentNightRound = round;
     render(`
       <div class="screen night-screen">
@@ -663,7 +761,9 @@
   }
 
   function handleNightAction(msg){
+    clearUiTimers();
     if(msg.action === "steal"){
+      setView("nightAction");
       render(`
         <div class="screen night-screen">
           <div class="moon">🌙</div>
@@ -674,6 +774,7 @@
       `);
       document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
     } else if(msg.action === "mutual"){
+      setView("nightAction");
       render(`
         <div class="screen night-screen">
           <div class="moon">🌙</div>
@@ -686,17 +787,30 @@
       `);
       document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
     } else if(msg.action === "peekPrompt"){
+      setView("nightAction");
+      const timeoutMs = msg.timeoutMs || 15000;
       render(`
         <div class="screen night-screen">
           <h2>👁️ 你獨自睜眼</h2>
-          <p>可以查看一位玩家的髈子點數；10 秒內未選擇會自動略過：</p>
+          <p>可以查看一位玩家的髈子點數；15 秒內未選擇會自動略過：</p>
+          <p id="peekCountdown">剩餘 15 秒</p>
           <div class="vote-grid">
             ${msg.targets.map(t => `<button class="btn secondary" data-target="${t.id}">${escapeHtml(t.name)}</button>`).join("")}
           </div>
         </div>
       `);
+      const endAt = Date.now() + timeoutMs;
+      const updateCountdown = () => {
+        const remainSec = Math.ceil(Math.max(0, endAt - Date.now()) / 1000);
+        const el = document.getElementById("peekCountdown");
+        if (el) el.textContent = remainSec > 0 ? `剩餘 ${remainSec} 秒` : "即將略過...";
+      };
+      uiInterval = setInterval(updateCountdown, 250);
+      uiTimer = setTimeout(() => clearUiTimers(), timeoutMs);
+      updateCountdown();
       document.querySelectorAll("#app .vote-grid button").forEach(btn => {
         btn.onclick = () => {
+          clearUiTimers();
           sendMsg("peekChoose", { targetId: parseInt(btn.dataset.target, 10) });
           document.querySelectorAll("#app .vote-grid button").forEach(b => b.disabled = true);
         };
@@ -705,6 +819,8 @@
   }
 
   function showPeekResult(msg){
+    clearUiTimers();
+    setView("nightAction");
     render(`
       <div class="screen night-screen">
         <div class="reveal-box">
@@ -718,6 +834,8 @@
   }
 
   function showChooseAccomplice(candidates){
+    clearUiTimers();
+    setView("nightAction");
     render(`
       <div class="screen night-screen">
         <h2>🧀 指定共犯</h2>
@@ -737,11 +855,14 @@
 
   function showAssignAccomplice(required, candidates){
     let chosen = [];
+    clearUiTimers();
+    setView("nightAction");
     function renderAssign(){
       render(`
         <div class="screen night-screen">
           <h2>🧀 指定共犯</h2>
           <p>請秘密指定 ${required} 名共犯（已選 ${chosen.length}/${required}）：</p>
+          <p id="assignCountdown">剩餘 15 秒</p>
           <div class="vote-grid">
             ${candidates.filter(c => !chosen.includes(c.id)).map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
           </div>
@@ -751,6 +872,7 @@
         btn.onclick = () => {
           chosen.push(parseInt(btn.dataset.target, 10));
           if(chosen.length >= required){
+            clearUiTimers();
             sendMsg("assignAccomplice", { targetIds: chosen });
             render(`<div class="screen night-screen"><p>已送出，請閉眼等待...</p></div>`);
           } else {
@@ -759,10 +881,21 @@
         };
       });
     }
+    const endAt = Date.now() + 15000;
+    const updateCountdown = () => {
+      const remainSec = Math.ceil(Math.max(0, endAt - Date.now()) / 1000);
+      const el = document.getElementById("assignCountdown");
+      if (el) el.textContent = remainSec > 0 ? `剩餘 ${remainSec} 秒` : "即將結束指定...";
+    };
+    uiInterval = setInterval(updateCountdown, 250);
+    uiTimer = setTimeout(() => clearUiTimers(), 15000);
     renderAssign();
+    updateCountdown();
   }
 
   function showAccompliceReveal(thiefName, partners){
+    clearUiTimers();
+    setView("nightAction");
     render(`
       <div class="screen night-screen">
         <h2>🤝 共犯相認</h2>
@@ -779,6 +912,8 @@
 
   // ---------- Screen: Day & Vote ----------
   function screenDayVote(stolen){
+    clearUiTimers();
+    setView("dayVote");
     const room = state.room;
     const stolenMsg = stolen ? "黑夜結束！奶酪不見了！" : "黑夜結束！奶酪竟然安然無恙！";
     render(`
@@ -817,6 +952,8 @@
 
   // ---------- Screen: Game Over ----------
   function screenGameOver(msg){
+    clearUiTimers();
+    setView("gameOver");
     const bannerClass = msg.mouseWin ? "mouse-win" : "thief-win";
     const bannerText = msg.mouseWin
       ? "🎉 貪睡鼠陣營獲勝！大盜被抓到了！"
@@ -852,8 +989,10 @@
       </div>
     `);
     document.getElementById("replayBtn").onclick = () => {
+      state.pendingReplay = true;
       sendMsg("restartRoom");
       render(`<div class="screen"><p>正在返回原房間...</p></div>`);
+      setView("replayWait");
     };
     document.getElementById("leaveBtn").onclick = () => {
       sendMsg("leaveRoom");

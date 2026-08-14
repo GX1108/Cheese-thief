@@ -9,8 +9,9 @@ const WebSocket = require("ws");
 const PORT = process.env.PORT || 8080;
 const MIN_PLAYERS = 5;
 const MAX_PLAYERS = 8;
+const CONFIRM_PHASE_MS = 15000;
 const NIGHT_ROUND_MS = 15000;
-const SOLO_PEEK_TIMEOUT_MS = 10000;
+const SOLO_PEEK_TIMEOUT_MS = 15000;
 const PHASE_TRANSITION_MS = 2500;
 
 const ROLE = {
@@ -137,6 +138,7 @@ function resetRoomToLobby(room) {
 }
 
 function startGame(room) {
+  clearRoomTimer(room);
   const n = room.players.size;
   const roles = [ROLE.THIEF];
   while (roles.length < n) roles.push(ROLE.MOUSE);
@@ -155,16 +157,8 @@ function startGame(room) {
 
   room.status = "confirm";
   room.log = [];
-  broadcast(room, "phaseChange", { phase: "confirm" });
-}
-
-function checkAllReady(room) {
-  const allReady = [...room.players.values()].every(p => p.ready);
-  const readyCount = [...room.players.values()].filter(p => p.ready).length;
-  broadcast(room, "readyProgress", { readyCount, total: room.players.size });
-  if (allReady) {
-    startNightPhase(room);
-  }
+  broadcast(room, "phaseChange", { phase: "confirm", durationMs: CONFIRM_PHASE_MS });
+  room.nightTimer = setTimeout(() => startNightPhase(room), CONFIRM_PHASE_MS);
 }
 
 function startNightPhase(room) {
@@ -223,6 +217,7 @@ function nightTick(room) {
     room.pendingAction = { type: "peek", mouseId: mouse.id };
     send(mouse.ws, "nightAction", {
       action: "peekPrompt",
+      timeoutMs: SOLO_PEEK_TIMEOUT_MS,
       targets: [...room.players.values()].filter(p => p.id !== mouse.id).map(p => ({ id: p.id, name: p.name }))
     });
     room.nightTimer = setTimeout(() => {
@@ -274,12 +269,20 @@ function resolveAccompliceChoice(room, thiefId, targetId) {
 }
 
 function beginAccompliceAssignment(room) {
+  clearRoomTimer(room);
   const n = room.players.size;
   const required = n === 6 ? 1 : 2;
   const thief = [...room.players.values()].find(p => p.role === ROLE.THIEF);
   const eligible = [...room.players.values()].filter(p => p.role === ROLE.MOUSE && !p.isAccomplice);
   room.pendingAction = { type: "assign", thiefId: thief.id, required };
-  send(thief.ws, "assignAccomplicePrompt", { required, candidates: eligible.map(p => ({ id: p.id, name: p.name })) });
+  send(thief.ws, "assignAccomplicePrompt", { required, timeoutMs: NIGHT_ROUND_MS, candidates: eligible.map(p => ({ id: p.id, name: p.name })) });
+  room.nightTimer = setTimeout(() => {
+    if (!room.pendingAction || room.pendingAction.type !== "assign") return;
+    room.log.push("大盜未在時限內指定共犯，本局不新增共犯。");
+    room.pendingAction = null;
+    room.accompliceStepDone = true;
+    room.nightTimer = setTimeout(() => startDayPhase(room), PHASE_TRANSITION_MS);
+  }, NIGHT_ROUND_MS);
 }
 
 function resolveAccompliceAssign(room, thiefId, targetIds) {
@@ -453,9 +456,13 @@ function handleMessage(ws, msg) {
     }
     case "restartRoom": {
       const room = rooms.get(ws.roomCode);
-      if (!room || room.status !== "over") return;
-      resetRoomToLobby(room);
-      broadcast(room, "roomUpdate", { room: lobbySummary(room) });
+      if (!room) return;
+      if (room.status === "over") {
+        resetRoomToLobby(room);
+        broadcast(room, "roomUpdate", { room: lobbySummary(room) });
+      } else if (room.status === "lobby") {
+        send(ws, "roomUpdate", { room: lobbySummary(room) });
+      }
       break;
     }
     case "startGame": {
@@ -473,12 +480,6 @@ function handleMessage(ws, msg) {
       break;
     }
     case "ackReady": {
-      const room = rooms.get(ws.roomCode);
-      if (!room || room.status !== "confirm") return;
-      const player = room.players.get(ws.playerId);
-      if (!player) return;
-      player.ready = true;
-      checkAllReady(room);
       break;
     }
     case "vote": {
