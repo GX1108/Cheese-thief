@@ -331,7 +331,6 @@
 
   function speak(text){
     if (!window.speechSynthesis) return;
-    speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "zh-TW";
     utter.rate = 1.05;
@@ -371,7 +370,7 @@
     if (!speechUnlocked && window.speechSynthesis) {
       speechUnlocked = true;
       const primer = new SpeechSynthesisUtterance(" ");
-      primer.volume = 0;
+      primer.volume = 0.05;
       primer.rate = 10;
       speechSynthesis.speak(primer);
     }
@@ -379,23 +378,27 @@
 
   function playCue(type){
     const ctx = ensureAudio();
-    if (!ctx || ctx.state !== "running") return;
-    const now = ctx.currentTime;
-    const notes = type === "confirm"
-      ? [{ freq: 740, at: 0, len: 0.12 }, { freq: 988, at: 0.14, len: 0.16 }]
-      : [{ freq: 523, at: 0, len: 0.08 }, { freq: 659, at: 0.1, len: 0.08 }, { freq: 784, at: 0.2, len: 0.12 }];
-    notes.forEach(note => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = note.freq;
-      gain.gain.setValueAtTime(0.0001, now + note.at);
-      gain.gain.exponentialRampToValueAtTime(0.08, now + note.at + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + note.at + note.len);
-      osc.connect(gain).connect(masterGainNode || ctx.destination);
-      osc.start(now + note.at);
-      osc.stop(now + note.at + note.len + 0.02);
-    });
+    if (!ctx) return;
+    const doPlay = () => {
+      const now = ctx.currentTime;
+      const notes = type === "confirm"
+        ? [{ freq: 740, at: 0, len: 0.12 }, { freq: 988, at: 0.14, len: 0.16 }]
+        : [{ freq: 523, at: 0, len: 0.08 }, { freq: 659, at: 0.1, len: 0.08 }, { freq: 784, at: 0.2, len: 0.12 }];
+      notes.forEach(note => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = note.freq;
+        gain.gain.setValueAtTime(0.0001, now + note.at);
+        gain.gain.exponentialRampToValueAtTime(0.08, now + note.at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + note.at + note.len);
+        osc.connect(gain).connect(masterGainNode || ctx.destination);
+        osc.start(now + note.at);
+        osc.stop(now + note.at + note.len + 0.02);
+      });
+    };
+    if (ctx.state === "running") { doPlay(); }
+    else { ctx.resume().then(doPlay).catch(() => {}); }
   }
 
   function initTtsVoice(){
