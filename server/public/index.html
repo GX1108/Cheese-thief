@@ -261,9 +261,12 @@
 <div id="conn" class="conn-status offline">連線中...</div>
 <button id="volumeBtn" class="volume-btn">🔊</button>
 <div id="volumePanel" class="volume-panel hidden">
-  <p>🔊 音量調整</p>
+  <p>🎵 背景音量</p>
+  <input type="range" id="bgmSlider" min="0" max="1" step="0.05" value="0.5">
+  <p style="margin-top:12px;">🎙️ 遊戲語音</p>
   <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.8">
 </div>
+<audio id="bgm" src="music/bgm.mp3" loop preload="auto"></audio>
 <div id="app"></div>
 
 <script>
@@ -299,6 +302,8 @@
   let masterGainNode = null;
   let masterVolume = parseFloat(localStorage.getItem("masterVolume") || "0.8");
   let ttsVoice = null;
+  let bgmVolume = parseFloat(localStorage.getItem("bgmVolume") || "0.5");
+  let bgmStarted = false;
 
   const ROLE_IMAGE = {
     [ROLE.THIEF]: "picture/奶酪大盜.png",
@@ -363,6 +368,15 @@
     return audioCtx;
   }
 
+  function startBgm(){
+    if (bgmStarted) return;
+    bgmStarted = true;
+    const bgm = document.getElementById("bgm");
+    if (!bgm) return;
+    bgm.volume = bgmVolume;
+    bgm.play().catch(() => {});
+  }
+
   function unlockAudio(){
     const ctx = ensureAudio();
     if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
@@ -374,6 +388,7 @@
       primer.rate = 10;
       speechSynthesis.speak(primer);
     }
+    startBgm();
   }
 
   function playCue(type){
@@ -1253,9 +1268,12 @@
     const volBtn = document.getElementById("volumeBtn");
     const volPanel = document.getElementById("volumePanel");
     const volSlider = document.getElementById("volumeSlider");
+    const bgmSlider = document.getElementById("bgmSlider");
     volSlider.value = masterVolume;
+    bgmSlider.value = bgmVolume;
     const updateIcon = () => {
-      volBtn.textContent = masterVolume === 0 ? "🔇" : masterVolume < 0.5 ? "🔉" : "🔊";
+      const v = Math.max(masterVolume, bgmVolume);
+      volBtn.textContent = v === 0 ? "🔇" : v < 0.5 ? "🔉" : "🔊";
     };
     updateIcon();
     volBtn.addEventListener("click", e => {
@@ -1267,6 +1285,13 @@
       masterVolume = parseFloat(volSlider.value);
       localStorage.setItem("masterVolume", masterVolume);
       if (masterGainNode) masterGainNode.gain.value = masterVolume;
+      updateIcon();
+    });
+    bgmSlider.addEventListener("input", () => {
+      bgmVolume = parseFloat(bgmSlider.value);
+      localStorage.setItem("bgmVolume", bgmVolume);
+      const bgm = document.getElementById("bgm");
+      if (bgm) bgm.volume = bgmVolume;
       updateIcon();
     });
     document.addEventListener("click", () => volPanel.classList.add("hidden"));
