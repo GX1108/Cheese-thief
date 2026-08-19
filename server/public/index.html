@@ -169,6 +169,7 @@
   .winner-banner{ font-size: 1.8rem; font-weight: bold; margin: 10px 0 18px; padding: 16px; border-radius: 12px; }
   .winner-banner.mouse-win{ background: rgba(125,211,252,0.15); color: #7dd3fc; border: 2px solid #7dd3fc; }
   .winner-banner.thief-win{ background: rgba(255,107,107,0.15); color: var(--accent-2); border: 2px solid var(--accent-2); }
+  .winner-banner.scapegoat-win{ background: rgba(192,132,252,0.15); color: #c084fc; border: 2px solid #c084fc; }
   .cheese-status-card{
     margin: 14px 0 18px;
     border-radius: 14px;
@@ -594,7 +595,7 @@
         showAccompliceSelecting(msg);
         break;
       case "accompliceReveal":
-        showAccompliceReveal(msg.thiefName, msg.partners);
+        showAccompliceReveal(msg.thiefName, msg.partners, msg.actualRole);
         break;
       case "dayStart":
         state.hasVoted = false;
@@ -730,6 +731,7 @@
     clearUiTimers();
     setView("createRoom");
     let isPublic = true;
+    let gameMode = "normal";
     render(`
       <div class="screen">
         <h2>🎲 創建遊戲</h2>
@@ -740,6 +742,11 @@
         </div>
         <div id="passwordArea" class="hidden">
           <input type="password" id="roomPasswordInput" placeholder="設定房間密碼" maxlength="40">
+        </div>
+        <p style="margin-top:14px;">遊戲模式</p>
+        <div class="toggle-group">
+          <button type="button" id="normalModeBtn" class="active">⚪ 一般</button>
+          <button type="button" id="advancedModeBtn">🐭 進階（含背鍋鼠，需 6+ 人）</button>
         </div>
         <div class="error-text" id="createError"></div>
         <div>
@@ -753,6 +760,8 @@
     const publicBtn = document.getElementById("publicBtn");
     const privateBtn = document.getElementById("privateBtn");
     const passwordArea = document.getElementById("passwordArea");
+    const normalModeBtn = document.getElementById("normalModeBtn");
+    const advancedModeBtn = document.getElementById("advancedModeBtn");
 
     publicBtn.onclick = () => {
       isPublic = true;
@@ -766,6 +775,16 @@
       publicBtn.classList.remove("active");
       passwordArea.classList.remove("hidden");
     };
+    normalModeBtn.onclick = () => {
+      gameMode = "normal";
+      normalModeBtn.classList.add("active");
+      advancedModeBtn.classList.remove("active");
+    };
+    advancedModeBtn.onclick = () => {
+      gameMode = "advanced";
+      advancedModeBtn.classList.add("active");
+      normalModeBtn.classList.remove("active");
+    };
 
     document.getElementById("backHomeBtn").onclick = screenHome;
 
@@ -778,7 +797,7 @@
           return;
         }
       }
-      sendMsg("createRoom", { playerName: state.playerName, isPublic, password });
+      sendMsg("createRoom", { playerName: state.playerName, isPublic, password, mode: gameMode });
     };
   }
 
@@ -864,7 +883,7 @@
       <div class="screen">
         <h2>房間大廳</h2>
         <div class="room-code">#${padCode(room.code)}</div>
-        <p>${room.isPublic ? "🌐 公開房間" : "🔒 非公開房間"}　｜　${count}/${room.maxPlayers} 人（最少 ${room.minPlayers} 人可開始）</p>
+        <p>${room.isPublic ? "🌐 公開房間" : "🔒 非公開房間"}${room.mode === "advanced" ? " ｜ 🐭 進階模式" : ""}　｜　${count}/${room.maxPlayers} 人（最少 ${room.minPlayers} 人可開始）</p>
         <div class="player-list">
           ${room.players.map(p => `
             <div class="player-chip">
@@ -899,8 +918,8 @@
     clearUiTimers();
     setView("roleConfirm");
     playCue("confirm");
-    const roleClass = state.myRole === ROLE.THIEF ? "thief" : "mouse";
-    const img = ROLE_IMAGE[state.myRole];
+    const roleClass = state.myRole === ROLE.THIEF ? "thief" : state.myRole === "背鍋鼠" ? "accomplice" : "mouse";
+    const img = ROLE_IMAGE[state.myRole] || ROLE_IMAGE.SCAPEGOAT;
     render(`
       <div class="screen">
         <h2>👀 你的身分</h2>
@@ -909,7 +928,7 @@
           ${img ? `<img class="role-card-img" src="${img}" alt="${state.myRole}">` : ""}
           <div class="role-name ${roleClass}">${state.myRole}</div>
           <div class="dice">🎲 骰子點數：${state.myDice}</div>
-          <p style="color:var(--text-dim); margin:6px 0 0;">${state.myRole === ROLE.THIEF ? "（大盜會依你的骰子點數，在 1 到 6 的其中一回合睜眼）" : "請記住你的睜眼回合數"}</p>
+          <p style="color:var(--text-dim); margin:6px 0 0;">${state.myRole === ROLE.THIEF ? "（大盜會依你的骰子點數，在 1 到 6 的其中一回合睜眼）" : state.myRole === "背鍋鼠" ? "（背鍋鼠！獲得最高票即獨自勝利，請記住你的骰子點數）" : "請記住你的睜眼回合數"}</p>
         </div>
         <p id="readyProgressText">剩餘 20 秒，時間到會自動進入黑夜</p>
       </div>
@@ -1234,21 +1253,26 @@
     speak("大盜正在選擇共犯中");
   }
 
-  function showAccompliceReveal(thiefName, partners){
+  function showAccompliceReveal(thiefName, partners, actualRole){
+    const isScapegoat = actualRole === "背鍋鼠";
     clearUiTimers();
     setView("nightAction");
     render(`
       <div class="screen night-screen">
-        <h2>🎉 你被大盜選擇做為共犯！</h2>
+        <h2>${isScapegoat ? "🐭 你被大盜選中！" : "🎉 你被大盜選擇做為共犯！"}</h2>
         <div class="reveal-box">
-          <div class="role-name accomplice">你是共犯</div>
-          ${thiefName ? `<p>大盜是：${escapeHtml(thiefName)}</p>` : `<p>你不知道誰是大盜</p>`}
-          ${partners && partners.length ? `<p>你的共犯夥伴：${partners.map(escapeHtml).join("、")}</p>` : ""}
+          ${isScapegoat
+            ? `<div class="role-name accomplice">你是背鍋鼠（中立）</div>
+               <p>你雖被大盜選中，但仍屬中立陣營。勝利條件：獲得投票最高票即可獨自勝利！</p>`
+            : `<div class="role-name accomplice">你是共犯</div>
+               ${thiefName ? `<p>大盜是：${escapeHtml(thiefName)}</p>` : `<p>你不知道誰是大盜</p>`}
+               ${partners && partners.length ? `<p>你的共犯夥伴：${partners.map(escapeHtml).join("、")}</p>` : ""}`
+          }
         </div>
         <p>等待進入白天...</p>
       </div>
     `);
-    speak("你被大盜選擇做為共犯");
+    speak(isScapegoat ? "你被大盜選中，但你是中立的背鍋鼠，獲得最高票即勝利" : "你被大盜選擇做為共犯");
   }
 
   // ---------- Screen: Day & Vote ----------
@@ -1331,9 +1355,12 @@
   function screenGameOver(msg){
     clearUiTimers();
     setView("gameOver");
-    speak(msg.mouseWin ? "遊戲結束，恭喜貪睡鼠陣營獲得勝利" : "遊戲結束，恭喜大盜與共犯獲得勝利");
-    const bannerClass = msg.mouseWin ? "mouse-win" : "thief-win";
-    const bannerText = msg.mouseWin
+    const scapegoatWin = !!msg.scapegoatWin;
+    speak(scapegoatWin ? "遊戲結束，恭喜背鍋鼠獨自獲得勝利" : msg.mouseWin ? "遊戲結束，恭喜貪睡鼠陣營獲得勝利" : "遊戲結束，恭喜大盜與共犯獲得勝利");
+    const bannerClass = scapegoatWin ? "scapegoat-win" : msg.mouseWin ? "mouse-win" : "thief-win";
+    const bannerText = scapegoatWin
+      ? "🐭 背鍋鼠獨自勝利！背鍋鼠獲得最高票！"
+      : msg.mouseWin
       ? "🎉 貪睡鼠陣營獲勝！大盜被抓到了！"
       : "🐀 大盜陣營獲勝！大盜與共犯成功逃脫！";
 

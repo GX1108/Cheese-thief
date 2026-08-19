@@ -17,7 +17,8 @@ const THIEF_REVEAL_MS = 5000;
 
 const ROLE = {
   THIEF: "奶酪大盜",
-  MOUSE: "貪睡鼠"
+  MOUSE: "貪睡鼠",
+  SCAPEGOAT: "背鍋鼠"
 };
 
 /** @type {Map<number, Room>} */
@@ -68,34 +69,37 @@ function publicRoomSummary(room) {
 }
 
 function lobbySummary(room) {
+  const minPlayers = room.mode === "advanced" ? 6 : MIN_PLAYERS;
   return {
     code: room.code,
     isPublic: room.isPublic,
     status: room.status,
     maxPlayers: MAX_PLAYERS,
-    minPlayers: MIN_PLAYERS,
+    minPlayers,
+    mode: room.mode || "normal",
     hostId: room.hostId,
     players: [...room.players.values()].map(p => ({ id: p.id, name: p.name, connected: p.connected }))
   };
 }
 
-function createRoom({ isPublic, password }) {
+function createRoom({ isPublic, password, mode }) {
   const code = generateRoomCode();
   const room = {
     code,
     isPublic,
     password: isPublic ? null : password,
-    players: new Map(), // id -> {id, name, ws, role, dice, isAccomplice, ready, connected}
+    players: new Map(),
     hostId: null,
     nextPlayerId: 1,
-    status: "lobby", // lobby -> confirm -> night -> day -> over
+    status: "lobby",
+    mode: mode === "advanced" ? "advanced" : "normal",
     nightRound: 0,
     roundEndsAt: 0,
     nightTimer: null,
     stolen: false,
     accompliceStepDone: false,
-    pendingAction: null, // { type: 'accomplice-choice'|'peek'|'assign', ... }
-    votes: new Map(), // voterId -> targetId
+    pendingAction: null,
+    votes: new Map(),
     log: []
   };
   rooms.set(code, room);
@@ -143,6 +147,7 @@ function startGame(room) {
   clearRoomTimer(room);
   const n = room.players.size;
   const roles = [ROLE.THIEF];
+  if (room.mode === "advanced") roles.push(ROLE.SCAPEGOAT);
   while (roles.length < n) roles.push(ROLE.MOUSE);
   const shuffledRoles = shuffle(roles);
 
@@ -182,7 +187,7 @@ function nightTick(room) {
   room.roundEndsAt = roundEndsAt;
   const waking = [...room.players.values()].filter(p => p.dice === round);
   const thief = waking.find(p => p.role === ROLE.THIEF);
-  const mice = waking.filter(p => p.role === ROLE.MOUSE);
+  const mice = waking.filter(p => p.role !== ROLE.THIEF); // includes MOUSE and SCAPEGOAT
   const wakingNames = waking.map(p => p.name);
 
   broadcast(room, "nightRound", { round, durationMs: NIGHT_ROUND_MS, roundEndsAt });
@@ -331,7 +336,7 @@ function beginAccompliceAssignment(room) {
   const required = n === 6 ? 1 : 2;
   const roundEndsAt = Date.now() + NIGHT_ROUND_MS;
   const thief = [...room.players.values()].find(p => p.role === ROLE.THIEF);
-  const eligible = [...room.players.values()].filter(p => p.role === ROLE.MOUSE && !p.isAccomplice);
+  const eligible = [...room.players.values()].filter(p => p.role !== ROLE.THIEF && !p.isAccomplice);
   room.pendingAction = { type: "assign", thiefId: thief.id, required };
   send(thief.ws, "assignAccomplicePrompt", { required, timeoutMs: NIGHT_ROUND_MS, roundEndsAt, candidates: eligible.map(p => ({ id: p.id, name: p.name })) });
   // Notify non-thief players that accomplice selection is in progress
@@ -363,9 +368,9 @@ function resolveAccompliceAssign(room, thiefId, targetIds) {
   chosenPlayers.forEach(acc => {
     const partners = chosenPlayers.filter(p => p.id !== acc.id).map(p => p.name);
     if (n === 6 || n === 8) {
-      send(acc.ws, "accompliceReveal", { thiefName: thief.name, partners });
+      send(acc.ws, "accompliceReveal", { thiefName: thief.name, partners, actualRole: acc.role });
     } else if (n === 7) {
-      send(acc.ws, "accompliceReveal", { thiefName: null, partners });
+      send(acc.ws, "accompliceReveal", { thiefName: null, partners, actualRole: acc.role });
     }
   });
 
@@ -418,19 +423,21 @@ function finishVoting(room) {
     }
   });
 
-  // 翻開最高票玩家的身分卡：只要其中有奶酪大盜，貪睡鼠陣營獲勝；否則大盜與共犯獲勝
-  const mouseWin = topIds.some(id => room.players.get(id).role === ROLE.THIEF);
+  // Scapegoat wins alone if in top votes; otherwise normal win check
+  const scapegoat = [...room.players.values()].find(p => p.role === ROLE.SCAPEGOAT);
+  const scapegoatWin = !!(scapegoat && topIds.includes(scapegoat.id));
+  const mouseWin = !scapegoatWin && topIds.some(id => room.players.get(id).role === ROLE.THIEF);
 
   room.status = "over";
   const playersReveal = [...room.players.values()].map(p => ({
     id: p.id,
     name: p.name,
-    role: p.isAccomplice ? "共犯" : p.role,
+    role: p.isAccomplice && p.role !== ROLE.SCAPEGOAT ? "共犯" : p.role,
     dice: p.dice,
     votes: tally[p.id] || 0
   }));
 
-  broadcast(room, "gameOver", { mouseWin, topIds, tally, players: playersReveal, log: room.log });
+  broadcast(room, "gameOver", { mouseWin, scapegoatWin, topIds, tally, players: playersReveal, log: room.log });
 }
 
 function handleMessage(ws, msg) {
@@ -464,7 +471,7 @@ function handleMessage(ws, msg) {
         return;
       }
 
-      const room = createRoom({ isPublic, password });
+      const room = createRoom({ isPublic, password, mode: msg.mode });
       const player = { id: room.nextPlayerId++, name: playerName, ws, role: null, dice: null, ready: false, connected: true };
       room.players.set(player.id, player);
       room.hostId = player.id;
@@ -545,6 +552,10 @@ function handleMessage(ws, msg) {
       }
       if (room.players.size < MIN_PLAYERS || room.players.size > MAX_PLAYERS) {
         send(ws, "error", { message: `房間需要 ${MIN_PLAYERS}-${MAX_PLAYERS} 位玩家才能開始` });
+        return;
+      }
+      if (room.mode === "advanced" && room.players.size < 6) {
+        send(ws, "error", { message: "進階模式需要至少 6 位玩家" });
         return;
       }
       startGame(room);
