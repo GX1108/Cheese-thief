@@ -511,6 +511,9 @@
       case "voteProgress":
         updateVoteProgress(msg.votedCount, msg.total);
         break;
+      case "replayProgress":
+        updateReplayProgress(msg.readyCount, msg.total);
+        break;
       case "gameOver":
         screenGameOver(msg);
         break;
@@ -1172,6 +1175,11 @@
     if(el) el.textContent = `投票進度：${votedCount}/${total}`;
   }
 
+  function updateReplayProgress(readyCount, total){
+    const el = document.getElementById("replayProgressText");
+    if(el) el.textContent = `已確認再玩：${readyCount}/${total}`;
+  }
+
   // ---------- Screen: Game Over ----------
   function screenGameOver(msg){
     clearUiTimers();
@@ -1213,7 +1221,7 @@
     document.getElementById("replayBtn").onclick = () => {
       state.pendingReplay = true;
       sendMsg("restartRoom");
-      render(`<div class="screen"><p>正在返回原房間...</p></div>`);
+      render(`<div class="screen"><p>等待其他玩家返回...</p><p id="replayProgressText"></p></div>`);
       setView("replayWait");
     };
     document.getElementById("leaveBtn").onclick = () => {
