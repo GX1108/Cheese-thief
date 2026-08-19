@@ -334,6 +334,10 @@ function beginAccompliceAssignment(room) {
   const eligible = [...room.players.values()].filter(p => p.role === ROLE.MOUSE && !p.isAccomplice);
   room.pendingAction = { type: "assign", thiefId: thief.id, required };
   send(thief.ws, "assignAccomplicePrompt", { required, timeoutMs: NIGHT_ROUND_MS, roundEndsAt, candidates: eligible.map(p => ({ id: p.id, name: p.name })) });
+  // Notify non-thief players that accomplice selection is in progress
+  [...room.players.values()].filter(p => p.role !== ROLE.THIEF).forEach(p => {
+    send(p.ws, "accompliceSelecting", { timeoutMs: NIGHT_ROUND_MS, roundEndsAt });
+  });
   room.nightTimer = setTimeout(() => {
     if (room.pendingAction && room.pendingAction.type === "assign") {
       room.log.push("大盜未在時限內指定共犯，本局不新增共犯。");
