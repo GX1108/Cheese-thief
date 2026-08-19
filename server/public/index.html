@@ -381,8 +381,8 @@
       }
       connEl.textContent = "已連線";
       connEl.className = "conn-status online";
-      // Re-fetch room list after reconnect so lobby data is up to date.
-      sendMsg("listRooms");
+      // Only refresh room list on reconnect if user was already viewing it.
+      if (isReconnecting && state.currentView === "joinList") sendMsg("listRooms");
     };
     ws.onclose = () => {
       wsReady = false;
