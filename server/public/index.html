@@ -932,7 +932,7 @@
       clearUiTimers();
     }, durationMs);
     updateCountdown();
-    speak("遵戊開始，請確認自己的角色與骰子點數");
+    speak("遊戲準備開始，請確認自己的角色與骰子點數");
     scheduleCountdown(Date.now() + durationMs);
   }
 
@@ -1164,8 +1164,10 @@
       document.querySelectorAll("#app .vote-grid button").forEach(btn => {
         btn.onclick = () => {
           clearUiTimers();
+          const chosenName = btn.textContent.trim();
           sendMsg("chooseAccomplice", { targetId: parseInt(btn.dataset.target, 10) });
-          document.querySelectorAll("#app .vote-grid button").forEach(b => b.disabled = true);
+          render(`<div class="screen night-screen"><h2>\u2705 \u4f60\u5df2\u9078\u64c7 ${escapeHtml(chosenName)} \u505a\u70ba\u4f60\u7684\u5171\u72af</h2><p>\u7b49\u5f85\u9032\u5165\u767d\u5929...</p></div>`);
+          speak(`\u4f60\u5df2\u9078\u64c7${chosenName}\u505a\u70ba\u4f60\u7684\u5171\u72af`);
         };
       });
     }, revealDelayMs);
@@ -1194,7 +1196,10 @@
           if(chosen.length >= required){
             clearUiTimers();
             sendMsg("assignAccomplice", { targetIds: chosen });
-            render(`<div class="screen night-screen"><p>已送出，請閉眼等待...</p></div>`);
+            const chosenNames = chosen.map(id => (candidates.find(c => c.id === id) || {}).name).filter(Boolean);
+            const nameStr = chosenNames.join("、");
+            render(`<div class="screen night-screen"><h2>✅ 你已選擇 ${chosenNames.map(escapeHtml).join("、")} 做為你的共犯</h2><p>等待進入白天...</p></div>`);
+            speak(`你已選擇${nameStr}做為你的共犯`);
           } else {
             renderAssign();
           }
