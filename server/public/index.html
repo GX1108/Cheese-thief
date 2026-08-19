@@ -745,8 +745,8 @@
         </div>
         <p style="margin-top:14px;">遊戲模式</p>
         <div class="toggle-group">
-          <button type="button" id="normalModeBtn" class="active">⚪ 一般</button>
-          <button type="button" id="advancedModeBtn">🐭 進階（含背鍋鼠，需 6+ 人）</button>
+          <button type="button" id="normalModeBtn" class="active">一般</button>
+          <button type="button" id="advancedModeBtn">進階（含背鍋鼠）</button>
         </div>
         <div class="error-text" id="createError"></div>
         <div>
@@ -1254,25 +1254,20 @@
   }
 
   function showAccompliceReveal(thiefName, partners, actualRole){
-    const isScapegoat = actualRole === "背鍋鼠";
     clearUiTimers();
     setView("nightAction");
     render(`
       <div class="screen night-screen">
-        <h2>${isScapegoat ? "🐭 你被大盜選中！" : "🎉 你被大盜選擇做為共犯！"}</h2>
+        <h2>🎉 你被大盜選擇做為共犯！</h2>
         <div class="reveal-box">
-          ${isScapegoat
-            ? `<div class="role-name accomplice">你是背鍋鼠（中立）</div>
-               <p>你雖被大盜選中，但仍屬中立陣營。勝利條件：獲得投票最高票即可獨自勝利！</p>`
-            : `<div class="role-name accomplice">你是共犯</div>
-               ${thiefName ? `<p>大盜是：${escapeHtml(thiefName)}</p>` : `<p>你不知道誰是大盜</p>`}
-               ${partners && partners.length ? `<p>你的共犯夥伴：${partners.map(escapeHtml).join("、")}</p>` : ""}`
-          }
+          <div class="role-name accomplice">你是共犯</div>
+          ${thiefName ? `<p>大盜是：${escapeHtml(thiefName)}</p>` : `<p>你不知道誰是大盜</p>`}
+          ${partners && partners.length ? `<p>你的共犯夥伴：${partners.map(escapeHtml).join("、")}</p>` : ""}
         </div>
         <p>等待進入白天...</p>
       </div>
     `);
-    speak(isScapegoat ? "你被大盜選中，但你是中立的背鍋鼠，獲得最高票即勝利" : "你被大盜選擇做為共犯");
+    speak("你被大盜選擇做為共犯");
   }
 
   // ---------- Screen: Day & Vote ----------
