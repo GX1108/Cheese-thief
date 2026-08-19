@@ -275,6 +275,7 @@
   const connEl = document.getElementById("conn");
   let uiTimer = null;
   let uiInterval = null;
+  let speechTimers = [];
   let audioCtx = null;
 
   const ROLE_IMAGE = {
@@ -292,11 +293,39 @@
     state.currentView = view;
   }
 
+  function clearSpeechTimers(){
+    speechTimers.forEach(t => clearTimeout(t));
+    speechTimers = [];
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
   function clearUiTimers(){
     clearTimeout(uiTimer);
     clearInterval(uiInterval);
     uiTimer = null;
     uiInterval = null;
+    clearSpeechTimers();
+  }
+
+  function speak(text){
+    if (!window.speechSynthesis) return;
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "zh-TW";
+    utter.rate = 1.05;
+    window.speechSynthesis.speak(utter);
+  }
+
+  function scheduleSpeech(text, delayMs){
+    if (!window.speechSynthesis) return;
+    const t = setTimeout(() => speak(text), Math.max(0, delayMs));
+    speechTimers.push(t);
+  }
+
+  function scheduleCountdown(endAt){
+    for (let i = 5; i >= 1; i--) {
+      const delay = endAt - Date.now() - i * 1000;
+      if (delay >= 0) scheduleSpeech(String(i), delay);
+    }
   }
 
   function ensureAudio(){
@@ -772,7 +801,7 @@
     render(`
       <div class="screen">
         <h2>👀 你的身分</h2>
-        <p>請確認自己的裝置畫面，勿讓其他人看到</p>
+        <p>請確認自己的角色與骰子點數，請勿讓其他人看到</p>
         <div class="reveal-box">
           ${img ? `<img class="role-card-img" src="${img}" alt="${state.myRole}">` : ""}
           <div class="role-name ${roleClass}">${state.myRole}</div>
@@ -803,6 +832,8 @@
       clearUiTimers();
     }, durationMs);
     updateCountdown();
+    speak("請確認自己的角色與骰子點數");
+    scheduleCountdown(Date.now() + durationMs);
   }
 
   function updateReadyProgress(readyCount, total){
@@ -823,7 +854,10 @@
         ${renderCountdownBox("nightCountdownText", "nightCountdownBar", "剩餘 20 秒")}
       </div>
     `);
-    startCountdownTo(resolveRoundEndsAt(roundEndsAt, durationMs || 20000), durationMs || 20000, "nightCountdownText", "nightCountdownBar", "本回合結束");
+    const nightEndAt = resolveRoundEndsAt(roundEndsAt, durationMs || 20000);
+    startCountdownTo(nightEndAt, durationMs || 20000, "nightCountdownText", "nightCountdownBar", "本回合結束");
+    speak(`現在${round}點了，請骰到${round}點的玩家行動`);
+    scheduleCountdown(nightEndAt);
   }
 
   function renderCheeseStatus(cheeseTaken){
@@ -897,7 +931,10 @@
         ${renderCountdownBox("dayThinkCountdown", "dayThinkCountdownBar", "剩餘 20 秒")}
       </div>
     `);
-    startCountdownTo(thinkEndsAt || (Date.now() + (durationMs || 20000)), durationMs || 20000, "dayThinkCountdown", "dayThinkCountdownBar", "即將進入投票");
+    const thinkEndAt = thinkEndsAt || (Date.now() + (durationMs || 20000));
+    startCountdownTo(thinkEndAt, durationMs || 20000, "dayThinkCountdown", "dayThinkCountdownBar", "即將進入投票");
+    speak("最後20秒思考，時間結束後開始投票");
+    scheduleCountdown(thinkEndAt);
   }
 
   function handleNightAction(msg){
@@ -945,6 +982,10 @@
         </div>
       `);
       startCountdownTo(roundEndsAt, timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
+      speak(msg.names && msg.names.length
+        ? `這回合你與${msg.names.join("、")}同時睜眼`
+        : "這回合你睜眼了");
+      scheduleCountdown(roundEndsAt);
       document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
     } else if(msg.action === "peekPrompt"){
       setView("nightAction");
@@ -963,6 +1004,8 @@
         </div>
       `);
       startCountdownTo(roundEndsAt, timeoutMs, "peekCountdown", "peekCountdownBar", "即將略過...");
+      speak("這回合只有你睜眼，請查看一位玩家的點數");
+      scheduleCountdown(roundEndsAt);
       document.querySelectorAll("#app .vote-grid button").forEach(btn => {
         btn.onclick = () => {
           clearUiTimers();
@@ -1020,6 +1063,8 @@
         </div>
       `);
       startCountdownTo(roundEndsAt, timeoutMs, "chooseCountdown", "chooseCountdownBar", "本回合結束");
+      speak("請奶酪大盜選擇你的共犯");
+      scheduleCountdown(roundEndsAt);
       document.querySelectorAll("#app .vote-grid button").forEach(btn => {
         btn.onclick = () => {
           clearUiTimers();
@@ -1035,6 +1080,7 @@
     clearUiTimers();
     setView("nightAction");
     const endAt = resolveRoundEndsAt(roundEndsAt, timeoutMs || 20000);
+    let assignSpeechDone = false;
     function renderAssign(){
       render(`
         <div class="screen night-screen">
@@ -1059,6 +1105,11 @@
         };
       });
       startCountdownTo(endAt, timeoutMs || 20000, "assignCountdown", "assignCountdownBar", "指定時間結束");
+      if (!assignSpeechDone) {
+        assignSpeechDone = true;
+        speak("請奶酪大盜選擇你的共犯");
+      }
+      scheduleCountdown(endAt);
     }
     renderAssign();
   }
@@ -1084,6 +1135,7 @@
   function screenDayVote(){
     clearUiTimers();
     setView("dayVote");
+    speak("請大家開始投票");
     const room = state.room;
     const stolenMsg = "黑夜結束！奶酪不見了！";
     render(`
