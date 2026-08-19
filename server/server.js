@@ -236,7 +236,6 @@ function nightTick(room) {
           companions: wakingNames.filter(name => name !== thief.name),
           candidates: coincident.map(m => ({ id: m.id, name: m.name }))
         });
-        return; // wait for thief's choice
       }
     }
     scheduleNextNightStep(room, roundEndsAt, () => {
@@ -493,6 +492,11 @@ function handleMessage(ws, msg) {
       const playerName = String(msg.playerName || "").trim().slice(0, 20);
       if (!playerName) {
         send(ws, "error", { message: "請輸入暱稱" });
+        return;
+      }
+      const nameTaken = [...room.players.values()].some(p => p.name === playerName);
+      if (nameTaken) {
+        send(ws, "error", { message: "此暱稱已被使用，請換一個" });
         return;
       }
       const player = { id: room.nextPlayerId++, name: playerName, ws, role: null, dice: null, ready: false, connected: true };

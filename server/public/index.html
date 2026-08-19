@@ -820,7 +820,6 @@
         <div class="moon">🌙</div>
         <h2>黑夜降臨...</h2>
         <div class="round-counter">第 ${round} 回合 ${roundFace(round)}</div>
-        <p>本回合保留 20 秒給對應玩家確認與操作，請保持安靜等待...</p>
         ${renderCountdownBox("nightCountdownText", "nightCountdownBar", "剩餘 20 秒")}
       </div>
     `);
@@ -926,8 +925,8 @@
         const box = document.getElementById("thiefRoundStatus");
         if (!box) return;
         box.innerHTML = msg.isThief
-          ? `<div class="cheese-status-card missing theft-alert"><div class="cheese-status-emoji alert">🧀❌</div><div>奶酪已經不見了</div><div class="theft-text">第 5 秒，奶酪被我偷走了</div></div>`
-          : `<div class="cheese-status-card missing theft-alert"><div class="cheese-status-emoji alert">🧀❌</div><div>奶酪已經不見了</div><div class="theft-text">第 5 秒，奶酪被 ${escapeHtml(msg.thiefName)} 偷走了</div></div>`;
+          ? `<div class="cheese-status-card missing theft-alert"><div class="cheese-status-emoji alert">🧀❌</div><div>奶酪已經不見了</div><div class="theft-text">奶酪被我偷走了</div></div>`
+          : `<div class="cheese-status-card missing theft-alert"><div class="cheese-status-emoji alert">🧀❌</div><div>奶酪已經不見了</div><div class="theft-text">奶酪被 ${escapeHtml(msg.thiefName)} 偷走了</div></div>`;
       }, revealDelayMs);
       document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
     } else if(msg.action === "mutual"){
@@ -1090,7 +1089,7 @@
     render(`
       <div class="screen">
         <div class="day-banner">☀️ ${stolenMsg}</div>
-        <p>請所有玩家開始自由討論（建議計時 3 分鐘），討論結束後進行投票。</p>
+        <p>請所有玩家開始自由討論（建議自行計時），討論結束後進行投票。</p>
         <h2>請投出你懷疑的對象</h2>
         <div class="vote-status" id="voteStatus">投票進度：0/${room.players.length}</div>
         <div class="vote-grid" id="voteGrid">
