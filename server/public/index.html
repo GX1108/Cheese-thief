@@ -242,10 +242,28 @@
 
   .hidden{ display:none !important; }
   .footer-note{ margin-top: 18px; font-size: .8rem; color: #444c56; }
+  .volume-btn{
+    position: fixed; top: 10px; left: 10px; z-index: 200;
+    background: #30363d; color: var(--text); border: none;
+    border-radius: 8px; padding: 6px 10px; font-size: .85rem;
+    font-weight: bold; cursor: pointer; min-width: unset;
+  }
+  .volume-panel{
+    position: fixed; top: 44px; left: 10px; z-index: 200;
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+    padding: 14px 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); min-width: 160px;
+  }
+  .volume-panel p{ font-size:.8rem; color:var(--text-dim); margin:0 0 8px; }
+  .volume-panel input[type=range]{ width:100%; max-width:100%; margin:0; accent-color:var(--accent); cursor:pointer; }
 </style>
 </head>
 <body>
 <div id="conn" class="conn-status offline">連線中...</div>
+<button id="volumeBtn" class="volume-btn">🔊</button>
+<div id="volumePanel" class="volume-panel hidden">
+  <p>🔊 音量調整</p>
+  <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.8">
+</div>
 <div id="app"></div>
 
 <script>
@@ -277,6 +295,9 @@
   let uiInterval = null;
   let speechTimers = [];
   let audioCtx = null;
+  let masterGainNode = null;
+  let masterVolume = parseFloat(localStorage.getItem("masterVolume") || "0.8");
+  let ttsVoice = null;
 
   const ROLE_IMAGE = {
     [ROLE.THIEF]: "picture/奶酪大盜.png",
@@ -309,10 +330,13 @@
 
   function speak(text){
     if (!window.speechSynthesis) return;
+    speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "zh-TW";
     utter.rate = 1.05;
-    window.speechSynthesis.speak(utter);
+    utter.volume = masterVolume;
+    if (ttsVoice) utter.voice = ttsVoice;
+    speechSynthesis.speak(utter);
   }
 
   function scheduleSpeech(text, delayMs){
@@ -333,6 +357,9 @@
     const AudioCtor = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtor) return null;
     audioCtx = new AudioCtor();
+    masterGainNode = audioCtx.createGain();
+    masterGainNode.gain.value = masterVolume;
+    masterGainNode.connect(audioCtx.destination);
     return audioCtx;
   }
 
@@ -356,10 +383,23 @@
       gain.gain.setValueAtTime(0.0001, now + note.at);
       gain.gain.exponentialRampToValueAtTime(0.08, now + note.at + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + note.at + note.len);
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(masterGainNode || ctx.destination);
       osc.start(now + note.at);
       osc.stop(now + note.at + note.len + 0.02);
     });
+  }
+
+  function initTtsVoice(){
+    if (!window.speechSynthesis) return;
+    const voices = speechSynthesis.getVoices();
+    ttsVoice = voices.find(v => v.lang === "zh-TW")
+      || voices.find(v => v.lang === "zh-HK")
+      || voices.find(v => v.lang.startsWith("zh"))
+      || null;
+  }
+  if (window.speechSynthesis) {
+    initTtsVoice();
+    speechSynthesis.onvoiceschanged = initTtsVoice;
   }
 
   ["pointerdown", "keydown", "touchstart"].forEach(eventName => {
@@ -369,7 +409,7 @@
   // Play a short click tick on any button press.
   document.addEventListener("pointerdown", e => {
     const btn = e.target.closest("button");
-    if (!btn || btn.disabled) return;
+    if (!btn || btn.disabled || btn.id === "volumeBtn") return;
     const ctx = ensureAudio();
     if (!ctx || ctx.state !== "running") return;
     const now = ctx.currentTime;
@@ -380,7 +420,7 @@
     osc.frequency.exponentialRampToValueAtTime(500, now + 0.05);
     gain.gain.setValueAtTime(0.10, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(masterGainNode || ctx.destination);
     osc.start(now);
     osc.stop(now + 0.06);
   }, { passive: true });
@@ -529,9 +569,6 @@
         break;
       case "voteProgress":
         updateVoteProgress(msg.votedCount, msg.total);
-        break;
-      case "replayProgress":
-        updateReplayProgress(msg.readyCount, msg.total);
         break;
       case "gameOver":
         screenGameOver(msg);
@@ -1194,12 +1231,31 @@
     if(el) el.textContent = `投票進度：${votedCount}/${total}`;
   }
 
-  function updateReplayProgress(readyCount, total){
-    const el = document.getElementById("replayProgressText");
-    if(el) el.textContent = `已確認再玩：${readyCount}/${total}`;
-  }
+  // Volume control
+  (function(){
+    const volBtn = document.getElementById("volumeBtn");
+    const volPanel = document.getElementById("volumePanel");
+    const volSlider = document.getElementById("volumeSlider");
+    volSlider.value = masterVolume;
+    const updateIcon = () => {
+      volBtn.textContent = masterVolume === 0 ? "🔇" : masterVolume < 0.5 ? "🔉" : "🔊";
+    };
+    updateIcon();
+    volBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      volPanel.classList.toggle("hidden");
+    });
+    volPanel.addEventListener("click", e => e.stopPropagation());
+    volSlider.addEventListener("input", () => {
+      masterVolume = parseFloat(volSlider.value);
+      localStorage.setItem("masterVolume", masterVolume);
+      if (masterGainNode) masterGainNode.gain.value = masterVolume;
+      updateIcon();
+    });
+    document.addEventListener("click", () => volPanel.classList.add("hidden"));
+  })();
 
-  // ---------- Screen: Game Over ----------
+  // Init
   function screenGameOver(msg){
     clearUiTimers();
     setView("gameOver");
@@ -1240,7 +1296,7 @@
     document.getElementById("replayBtn").onclick = () => {
       state.pendingReplay = true;
       sendMsg("restartRoom");
-      render(`<div class="screen"><p>等待其他玩家返回...</p><p id="replayProgressText"></p></div>`);
+      render(`<div class="screen"><p>正在返回房間...</p></div>`);
       setView("replayWait");
     };
     document.getElementById("leaveBtn").onclick = () => {

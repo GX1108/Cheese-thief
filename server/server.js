@@ -96,7 +96,6 @@ function createRoom({ isPublic, password }) {
     accompliceStepDone: false,
     pendingAction: null, // { type: 'accomplice-choice'|'peek'|'assign', ... }
     votes: new Map(), // voterId -> targetId
-    replayReady: new Set(), // playerIds who clicked 再玩一次
     log: []
   };
   rooms.set(code, room);
@@ -130,7 +129,6 @@ function resetRoomToLobby(room) {
   room.accompliceStepDone = false;
   room.pendingAction = null;
   room.votes = new Map();
-  room.replayReady = new Set();
   room.log = [];
 
   for (const player of room.players.values()) {
@@ -527,19 +525,8 @@ function handleMessage(ws, msg) {
       const room = rooms.get(ws.roomCode);
       if (!room) return;
       if (room.status === "over") {
-        room.replayReady.add(ws.playerId);
-        const connected = [...room.players.values()].filter(p => p.connected);
-        const allReady = connected.every(p => room.replayReady.has(p.id));
-        if (allReady) {
-          resetRoomToLobby(room);
-          broadcast(room, "roomUpdate", { room: lobbySummary(room) });
-        } else {
-          // Notify everyone of current replay-ready count
-          broadcast(room, "replayProgress", {
-            readyCount: room.replayReady.size,
-            total: connected.length
-          });
-        }
+        resetRoomToLobby(room);
+        broadcast(room, "roomUpdate", { room: lobbySummary(room) });
       } else if (room.status === "lobby") {
         send(ws, "roomUpdate", { room: lobbySummary(room) });
       }
