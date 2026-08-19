@@ -1310,6 +1310,7 @@
     volSlider.addEventListener("input", () => {
       masterVolume = parseFloat(volSlider.value);
       localStorage.setItem("masterVolume", masterVolume);
+      ensureAudio();
       if (masterGainNode) masterGainNode.gain.value = masterVolume;
       updateIcon();
     });
