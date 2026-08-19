@@ -336,8 +336,8 @@
 
   function speak(text){
     if (!window.speechSynthesis) return;
-    // Resume first to fix Chrome bug where cancel() leaves synthesis paused
-    if (speechSynthesis.paused) speechSynthesis.resume();
+    // Always resume to reset Chrome's stuck state after cancel()
+    speechSynthesis.resume();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "zh-TW";
     utter.rate = 1.05;
@@ -879,7 +879,11 @@
     `);
     lastErrorTarget = "lobbyError";
     const startBtn = document.getElementById("startGameBtn");
-    if(startBtn) startBtn.onclick = () => sendMsg("startGame");
+    if(startBtn) startBtn.onclick = () => {
+      // Unlock speech synthesis synchronously in user gesture before game starts
+      if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(" "); u.volume = 0.01; u.rate = 10; speechSynthesis.speak(u); }
+      sendMsg("startGame");
+    };
     document.getElementById("leaveBtn").onclick = () => {
       sendMsg("leaveRoom");
       state.room = null;
@@ -1050,7 +1054,6 @@
           <div id="thiefRoundStatus">
             <p>正在行動中...</p>
           </div>
-          <button class="btn" id="continueBtn">確認</button>
         </div>
       `);
       startCountdownTo(roundEndsAt, timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
@@ -1061,7 +1064,6 @@
           ? `<div class="cheese-status-card missing theft-alert"><div class="cheese-status-emoji alert">🧀❌</div><div>奶酪已經不見了</div><div class="theft-text">奶酪被我偷走了</div></div>`
           : `<div class="cheese-status-card missing theft-alert"><div class="cheese-status-emoji alert">🧀❌</div><div>奶酪已經不見了</div><div class="theft-text">奶酪被 ${escapeHtml(msg.thiefName)} 偷走了</div></div>`;
       }, revealDelayMs);
-      document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
     } else if(msg.action === "mutual"){
       setView("nightAction");
       const timeoutMs = msg.timeoutMs || 20000;
@@ -1074,7 +1076,6 @@
           <h2>🤝 互相確認</h2>
           ${renderCoWakeLines(msg.names)}
           ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 20 秒")}
-          <button class="btn" id="continueBtn">確認</button>
         </div>
       `);
       startCountdownTo(roundEndsAt, timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
@@ -1082,7 +1083,6 @@
         ? `這回合你與${msg.names.join("、")}同時睜眼`
         : "這回合你睜眼了");
       scheduleCountdown(roundEndsAt);
-      document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
     } else if(msg.action === "peekPrompt"){
       setView("nightAction");
       const timeoutMs = msg.timeoutMs || 20000;
@@ -1237,11 +1237,10 @@
           ${thiefName ? `<p>大盜是：${escapeHtml(thiefName)}</p>` : `<p>你不知道誰是大盜</p>`}
           ${partners && partners.length ? `<p>你的共犯夥伴：${partners.map(escapeHtml).join("、")}</p>` : ""}
         </div>
-        <button class="btn" id="continueBtn">確認已記住</button>
+        <p>等待進入白天...</p>
       </div>
     `);
     speak("你被大盜選擇做為共犯");
-    document.getElementById("continueBtn").onclick = () => screenNight(state.currentNightRound);
   }
 
   // ---------- Screen: Day & Vote ----------
@@ -1323,6 +1322,7 @@
   function screenGameOver(msg){
     clearUiTimers();
     setView("gameOver");
+    speak(msg.mouseWin ? "遊戲結束，恭喜貪睡鼠陣營獲得勝利" : "遊戲結束，恭喜大盜與共犯獲得勝利");
     const bannerClass = msg.mouseWin ? "mouse-win" : "thief-win";
     const bannerText = msg.mouseWin
       ? "🎉 貪睡鼠陣營獲勝！大盜被抓到了！"
