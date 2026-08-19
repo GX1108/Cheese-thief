@@ -273,7 +273,7 @@
   const ROLE = { THIEF: "奶酪大盜", MOUSE: "貪睡鼠" };
 
   const state = {
-    playerName: "",
+    playerName: localStorage.getItem("playerName") || "",
     room: null,      // lobby summary from server
     yourId: null,
     isHost: false,
@@ -294,6 +294,7 @@
   let uiTimer = null;
   let uiInterval = null;
   let speechTimers = [];
+  let speechUnlocked = false;
   let audioCtx = null;
   let masterGainNode = null;
   let masterVolume = parseFloat(localStorage.getItem("masterVolume") || "0.8");
@@ -366,6 +367,14 @@
   function unlockAudio(){
     const ctx = ensureAudio();
     if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+    // Unlock speech synthesis on first gesture (required on mobile Chrome)
+    if (!speechUnlocked && window.speechSynthesis) {
+      speechUnlocked = true;
+      const primer = new SpeechSynthesisUtterance(" ");
+      primer.volume = 0;
+      primer.rate = 10;
+      speechSynthesis.speak(primer);
+    }
   }
 
   function playCue(type){
@@ -406,23 +415,27 @@
     window.addEventListener(eventName, unlockAudio, { passive: true });
   });
 
-  // Play a short click tick on any button press.
+  // Play a short click tick; handle suspended AudioContext on mobile.
   document.addEventListener("pointerdown", e => {
     const btn = e.target.closest("button");
     if (!btn || btn.disabled || btn.id === "volumeBtn") return;
     const ctx = ensureAudio();
-    if (!ctx || ctx.state !== "running") return;
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(900, now);
-    osc.frequency.exponentialRampToValueAtTime(500, now + 0.05);
-    gain.gain.setValueAtTime(0.10, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
-    osc.connect(gain).connect(masterGainNode || ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.06);
+    if (!ctx) return;
+    const playClick = () => {
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(900, now);
+      osc.frequency.exponentialRampToValueAtTime(500, now + 0.05);
+      gain.gain.setValueAtTime(0.10, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+      osc.connect(gain).connect(masterGainNode || ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    };
+    if (ctx.state === "running") { playClick(); }
+    else if (ctx.state === "suspended") { ctx.resume().then(playClick).catch(() => {}); }
   }, { passive: true });
 
   function escapeHtml(str){
@@ -611,6 +624,7 @@
         return null;
       }
       state.playerName = name;
+      localStorage.setItem("playerName", name);
       return name;
     };
     document.getElementById("createBtn").onclick = () => { if(readName()) screenCreateRoom(); };
@@ -1255,7 +1269,7 @@
     document.addEventListener("click", () => volPanel.classList.add("hidden"));
   })();
 
-  // Init
+  // ---------- Screen: Game Over ----------
   function screenGameOver(msg){
     clearUiTimers();
     setView("gameOver");
