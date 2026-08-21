@@ -437,6 +437,7 @@
   let countdownAudio = null;
   let voiceTimers = [];
   let voiceUnlocked = false;
+  let voiceUnlocking = null;
 
   function clearVoiceTimers(){
     voiceTimers.forEach(t => clearTimeout(t));
@@ -455,18 +456,20 @@
   }
 
   function primeVoiceAudio(){
-    if (voiceUnlocked) return;
+    if (voiceUnlocked) return Promise.resolve();
+    if (voiceUnlocking) return voiceUnlocking;
     const audio = new Audio("voice/1.mp3");
     audio.volume = 0;
-    audio.play().then(() => {
+    voiceUnlocking = audio.play().then(() => {
       voiceUnlocked = true;
       audio.pause();
       audio.currentTime = 0;
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => { voiceUnlocking = null; });
+    return voiceUnlocking;
   }
 
   function playVoiceFile(fileName){
-    voiceQueue = voiceQueue.then(() => playVoiceFileNow(fileName));
+    voiceQueue = voiceQueue.then(() => primeVoiceAudio().then(() => playVoiceFileNow(fileName)));
     return voiceQueue;
   }
 
@@ -723,6 +726,7 @@
       </div>
     `);
     document.getElementById("startGameBtn").onclick = () => {
+      primeVoiceAudio();
       const rooms = loadRooms().filter(r => r.code !== room.code);
       saveRooms(rooms);
       state.playerCount = room.playerCount;
@@ -799,6 +803,7 @@
   }
 
   function setupGame(){
+    primeVoiceAudio();
     const n = state.playerCount;
     const roles = [ROLE.THIEF];
     while(roles.length < n) roles.push(ROLE.MOUSE);

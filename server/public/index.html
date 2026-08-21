@@ -310,6 +310,7 @@
   let voiceQueue = Promise.resolve();
   let countdownAudio = null;
   let voiceUnlocked = false;
+  let voiceUnlocking = null;
 
   const VOICE_FILES = new Map([
     ["遊戲準備開始，請確認自己的角色與骰子點數", "遊戲準備開始，請所有玩家確認自己的角色和骰子點數.mp3"],
@@ -365,7 +366,7 @@
   }
 
   function playVoiceFile(fileName){
-    voiceQueue = voiceQueue.then(() => playVoiceFileNow(fileName));
+    voiceQueue = voiceQueue.then(() => primeVoiceAudio().then(() => playVoiceFileNow(fileName)));
     return voiceQueue;
   }
 
@@ -380,14 +381,16 @@
   }
 
   function primeVoiceAudio(){
-    if (voiceUnlocked) return;
+    if (voiceUnlocked) return Promise.resolve();
+    if (voiceUnlocking) return voiceUnlocking;
     const audio = new Audio("voice/1.mp3");
     audio.volume = 0;
-    audio.play().then(() => {
+    voiceUnlocking = audio.play().then(() => {
       voiceUnlocked = true;
       audio.pause();
       audio.currentTime = 0;
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => { voiceUnlocking = null; });
+    return voiceUnlocking;
   }
 
   function speakDynamic(text){
@@ -1002,8 +1005,7 @@
     lastErrorTarget = "lobbyError";
     const startBtn = document.getElementById("startGameBtn");
     if(startBtn) startBtn.onclick = () => {
-      // Unlock speech synthesis synchronously in user gesture before game starts
-      if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(" "); u.volume = 0.01; u.rate = 10; speechSynthesis.speak(u); }
+      primeVoiceAudio();
       sendMsg("startGame");
     };
     document.getElementById("leaveBtn").onclick = () => {
