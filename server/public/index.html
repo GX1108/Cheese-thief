@@ -289,6 +289,7 @@
     joinCode: "",
     currentNightRound: 0,
     currentRoundEndsAt: 0,
+    serverClockOffset: 0,
     currentView: "home",
     pendingReplay: false
   };
@@ -307,6 +308,7 @@
   let bgmVolume = parseFloat(localStorage.getItem("bgmVolume") || "0.5");
   let bgmStarted = false;
   let voiceQueue = Promise.resolve();
+  let voiceUnlocked = false;
 
   const VOICE_FILES = new Map([
     ["遊戲準備開始，請確認自己的角色與骰子點數", "遊戲準備開始，請所有玩家確認自己的角色和骰子點數.mp3"],
@@ -376,6 +378,17 @@
     });
   }
 
+  function primeVoiceAudio(){
+    if (voiceUnlocked) return;
+    const audio = new Audio("voice/1.mp3");
+    audio.volume = 0;
+    audio.play().then(() => {
+      voiceUnlocked = true;
+      audio.pause();
+      audio.currentTime = 0;
+    }).catch(() => {});
+  }
+
   function speakDynamic(text){
     if (!window.speechSynthesis) return Promise.resolve();
     return new Promise(resolve => {
@@ -436,6 +449,7 @@
   }
 
   function unlockAudio(){
+    primeVoiceAudio();
     const ctx = ensureAudio();
     if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
     // Unlock speech synthesis on first gesture (required on mobile Chrome)
@@ -597,6 +611,9 @@
   }
 
   function handleServerMessage(msg){
+    if (msg.serverNow) state.serverClockOffset = Date.now() - msg.serverNow;
+    if (msg.roundEndsAt) msg.roundEndsAt += state.serverClockOffset;
+    if (msg.thinkEndsAt) msg.thinkEndsAt += state.serverClockOffset;
     switch(msg.type){
       case "roomList": screenJoinList(msg.rooms); break;
       case "roomJoined":
@@ -1080,7 +1097,7 @@
 
   function startCountdownTo(endAt, totalMs, textId, barId, finalText){
     clearUiTimers();
-    const total = Math.max(1, totalMs || 20000);
+    const total = Math.max(1, endAt - Date.now());
     const update = () => {
       const remainMs = Math.max(0, endAt - Date.now());
       const remainSec = Math.ceil(remainMs / 1000);

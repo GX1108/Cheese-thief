@@ -47,7 +47,7 @@ function rollDice() {
 
 function send(ws, type, payload) {
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type, ...payload }));
+    ws.send(JSON.stringify({ type, ...payload, serverNow: Date.now() }));
   }
 }
 

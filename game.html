@@ -435,6 +435,7 @@
   let voiceQueue = Promise.resolve();
   let voiceAudio = null;
   let voiceTimers = [];
+  let voiceUnlocked = false;
 
   function clearVoiceTimers(){
     voiceTimers.forEach(t => clearTimeout(t));
@@ -450,6 +451,17 @@
       audio.onerror = () => { voiceAudio = null; resolve(); };
       audio.play().catch(() => { voiceAudio = null; resolve(); });
     });
+  }
+
+  function primeVoiceAudio(){
+    if (voiceUnlocked) return;
+    const audio = new Audio("voice/1.mp3");
+    audio.volume = 0;
+    audio.play().then(() => {
+      voiceUnlocked = true;
+      audio.pause();
+      audio.currentTime = 0;
+    }).catch(() => {});
   }
 
   function playVoiceFile(fileName){
@@ -487,6 +499,10 @@
       voiceTimers.push(timer);
     }
   }
+
+  ["pointerdown", "keydown", "touchstart"].forEach(eventName => {
+    window.addEventListener(eventName, primeVoiceAudio, { passive: true });
+  });
 
   function render(html){
     app.innerHTML = html;
