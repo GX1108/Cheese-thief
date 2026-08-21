@@ -298,6 +298,7 @@
   let uiTimer = null;
   let uiInterval = null;
   let speechTimers = [];
+  let voiceTimers = [];
   let speechUnlocked = false;
   let audioCtx = null;
   let masterGainNode = null;
@@ -335,6 +336,8 @@
   function clearSpeechTimers(){
     speechTimers.forEach(t => clearTimeout(t));
     speechTimers = [];
+    voiceTimers.forEach(t => clearTimeout(t));
+    voiceTimers = [];
     if (window.speechSynthesis) window.speechSynthesis.cancel();
   }
 
@@ -405,9 +408,10 @@
   }
 
   function scheduleCountdown(endAt){
-    for (let i = 5; i >= 1; i--) {
-      const delay = endAt - Date.now() - i * 1000;
-      if (delay >= 0) scheduleSpeech(String(i), delay);
+    for (let number = 5; number >= 1; number--) {
+      const delay = endAt - Date.now() - number * 1000;
+      const timer = setTimeout(() => playVoiceFile(`voice/${number}.mp3`), Math.max(0, delay));
+      voiceTimers.push(timer);
     }
   }
 
@@ -1130,6 +1134,7 @@
         </div>
       `);
       startCountdownTo(roundEndsAt, timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
+      scheduleCountdown(Date.now() + revealDelayMs);
       setTimeout(() => {
         const box = document.getElementById("thiefRoundStatus");
         if (!box) return;
