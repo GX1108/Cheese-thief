@@ -1134,7 +1134,7 @@
         </div>
       `);
       startCountdownTo(roundEndsAt, timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
-      scheduleCountdown(Date.now() + revealDelayMs);
+      scheduleCountdown(roundEndsAt);
       setTimeout(() => {
         const box = document.getElementById("thiefRoundStatus");
         if (!box) return;
