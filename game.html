@@ -434,6 +434,7 @@
 
   let voiceQueue = Promise.resolve();
   let voiceAudio = null;
+  let countdownAudio = null;
   let voiceTimers = [];
   let voiceUnlocked = false;
 
@@ -491,11 +492,38 @@
     return voiceQueue;
   }
 
+  function playDiceResultVoice(dice){
+    playVoiceFileNow("他的骰子點數是.mp3").then(() => playVoiceFileNow(`${dice}.mp3`));
+  }
+
+  function playCountdownVoiceNow(number){
+    return new Promise(resolve => {
+      if (countdownAudio) countdownAudio.pause();
+      const audio = new Audio(`voice/${number}.mp3`);
+      countdownAudio = audio;
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(stopTimer);
+        audio.pause();
+        audio.currentTime = 0;
+        if (countdownAudio === audio) countdownAudio = null;
+        resolve();
+      };
+      const stopTimer = setTimeout(finish, 1000);
+      audio.volume = 1;
+      audio.onended = finish;
+      audio.onerror = finish;
+      audio.play().catch(finish);
+    });
+  }
+
   function scheduleCountdown(endAt){
     clearVoiceTimers();
     for (let number = 5; number >= 1; number--) {
       const delay = endAt - Date.now() - number * 1000;
-      const timer = setTimeout(() => playVoiceFileNow(`${number}.mp3`), Math.max(0, delay));
+      const timer = setTimeout(() => playCountdownVoiceNow(number), Math.max(0, delay));
       voiceTimers.push(timer);
     }
   }
@@ -1015,6 +1043,7 @@
     `);
     document.querySelectorAll("#app .vote-grid button").forEach(btn => {
       btn.onclick = () => {
+        primeVoiceAudio();
         const targetId = parseInt(btn.dataset.target, 10);
         const target = state.players.find(p => p.id === targetId);
         document.getElementById("peekResultArea").innerHTML = `
@@ -1024,9 +1053,7 @@
           </div>
           <button class="btn secondary" id="peekDoneBtn">確認已記住</button>
         `;
-        playVoiceSequence(
-          ["他的骰子點數是.mp3", `${target.dice}.mp3`]
-        );
+        playDiceResultVoice(target.dice);
         document.querySelectorAll("#app .vote-grid button").forEach(b => b.disabled = true);
         document.getElementById("peekDoneBtn").onclick = () => {
           state.pendingPeek = null;

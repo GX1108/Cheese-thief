@@ -308,6 +308,7 @@
   let bgmVolume = parseFloat(localStorage.getItem("bgmVolume") || "0.5");
   let bgmStarted = false;
   let voiceQueue = Promise.resolve();
+  let countdownAudio = null;
   let voiceUnlocked = false;
 
   const VOICE_FILES = new Map([
@@ -414,6 +415,33 @@
     return voiceQueue;
   }
 
+  function playDiceResultVoice(dice){
+    playVoiceFileNow("他的骰子點數是.mp3").then(() => playVoiceFileNow(`${dice}.mp3`));
+  }
+
+  function playCountdownVoiceNow(number){
+    return new Promise(resolve => {
+      if (countdownAudio) countdownAudio.pause();
+      const audio = new Audio(`voice/${number}.mp3`);
+      countdownAudio = audio;
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(stopTimer);
+        audio.pause();
+        audio.currentTime = 0;
+        if (countdownAudio === audio) countdownAudio = null;
+        resolve();
+      };
+      const stopTimer = setTimeout(finish, 1000);
+      audio.volume = masterVolume;
+      audio.onended = finish;
+      audio.onerror = finish;
+      audio.play().catch(finish);
+    });
+  }
+
   function scheduleSpeech(text, delayMs){
     if (!window.speechSynthesis) return;
     const t = setTimeout(() => speak(text), Math.max(0, delayMs));
@@ -423,7 +451,7 @@
   function scheduleCountdown(endAt){
     for (let number = 5; number >= 1; number--) {
       const delay = endAt - Date.now() - number * 1000;
-      const timer = setTimeout(() => playVoiceFileNow(`${number}.mp3`), Math.max(0, delay));
+      const timer = setTimeout(() => playCountdownVoiceNow(number), Math.max(0, delay));
       voiceTimers.push(timer);
     }
   }
@@ -1012,7 +1040,7 @@
     };
     const updateCountdown = () => {
       const remainMs = Math.max(0, endAt - Date.now());
-      const remainSec = Math.ceil(remainMs / 1000);
+      const remainSec = Math.min(20, Math.ceil(remainMs / 1000));
       const el = document.getElementById("readyProgressText");
       if (el) el.textContent = remainSec > 0 ? `剩餘 ${remainSec} 秒，時間到會自動進入黑夜` : "即將進入黑夜...";
       if (remainMs <= 0) {
@@ -1100,7 +1128,7 @@
     const total = Math.max(1, endAt - Date.now());
     const update = () => {
       const remainMs = Math.max(0, endAt - Date.now());
-      const remainSec = Math.ceil(remainMs / 1000);
+      const remainSec = Math.min(20, Math.ceil(remainMs / 1000));
       const textEl = document.getElementById(textId);
       const barEl = document.getElementById(barId);
       if (textEl) textEl.textContent = remainMs > 0 ? `剩餘 ${remainSec} 秒` : finalText;
@@ -1201,6 +1229,7 @@
       scheduleCountdown(roundEndsAt);
       document.querySelectorAll("#app .vote-grid button").forEach(btn => {
         btn.onclick = () => {
+          primeVoiceAudio();
           clearUiTimers();
           sendMsg("peekChoose", { targetId: parseInt(btn.dataset.target, 10) });
           document.querySelectorAll("#app .vote-grid button").forEach(b => b.disabled = true);
@@ -1223,7 +1252,8 @@
       </div>
     `);
     startCountdownTo(roundEndsAt, 20000, "peekResultCountdown", "peekResultCountdownBar", "本回合結束");
-    playVoiceSequence(["他的骰子點數是.mp3", `${msg.dice}.mp3`]);
+    scheduleCountdown(roundEndsAt);
+    playDiceResultVoice(msg.dice);
   }
 
   function showChooseAccomplice(msg){
@@ -1326,6 +1356,7 @@
       </div>
     `);
     startCountdownTo(endAt, msg.timeoutMs || 20000, "selectingCountdown", "selectingBar", "即將進入白天");
+    scheduleCountdown(endAt);
     speak("大盜正在選擇共犯中");
   }
 
