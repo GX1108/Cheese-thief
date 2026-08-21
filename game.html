@@ -432,6 +432,47 @@
     [ROLE.MOUSE]: "picture/貪睡鼠.png"
   };
 
+  let voiceQueue = Promise.resolve();
+  let voiceAudio = null;
+
+  function playVoiceFileNow(fileName){
+    return new Promise(resolve => {
+      const audio = new Audio(`voice/${fileName}`);
+      voiceAudio = audio;
+      audio.volume = 1;
+      audio.onended = () => { voiceAudio = null; resolve(); };
+      audio.onerror = () => { voiceAudio = null; resolve(); };
+      audio.play().catch(() => { voiceAudio = null; resolve(); });
+    });
+  }
+
+  function playVoiceFile(fileName){
+    voiceQueue = voiceQueue.then(() => playVoiceFileNow(fileName));
+    return voiceQueue;
+  }
+
+  function speakDynamic(text){
+    if (!window.speechSynthesis) return Promise.resolve();
+    return new Promise(resolve => {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "zh-TW";
+      utter.rate = 1.05;
+      utter.volume = 1;
+      utter.onend = resolve;
+      utter.onerror = resolve;
+      speechSynthesis.speak(utter);
+    });
+  }
+
+  function playVoiceSequence(files, dynamicText){
+    voiceQueue = voiceQueue.then(async () => {
+      if (files.length) await playVoiceFileNow(files[0]);
+      if (dynamicText) await speakDynamic(dynamicText);
+      for (const file of files.slice(1)) await playVoiceFileNow(file);
+    });
+    return voiceQueue;
+  }
+
   function render(html){
     app.innerHTML = html;
     document.body.classList.toggle("home-bg", html.includes('id="createBtn"'));
@@ -718,6 +759,7 @@
     }
     state.confirmIndex = 0;
     state.log = [];
+    playVoiceFile("遊戲準備開始，請所有玩家確認自己的角色和骰子點數.mp3");
     screenPassConfirm();
   }
 
@@ -810,6 +852,7 @@
 
     state.nightRound++;
     const round = state.nightRound;
+    playVoiceFile(`現在${round}點了 請骰到${round}點的玩家行動.mp3`);
     const waking = state.players.filter(p => p.dice === round);
     const thief = waking.find(p => p.role === ROLE.THIEF);
     const mice = waking.filter(p => p.role === ROLE.MOUSE);
@@ -879,6 +922,10 @@
   }
 
   function renderMutualConfirmScreen(round, mice){
+    playVoiceSequence(
+      ["這回合你與.mp3", "同時睜眼.mp3"],
+      mice.map(m => m.name).join("、")
+    );
     render(`
       <div class="screen night-screen">
         <div class="moon">🌙</div>
@@ -908,6 +955,7 @@
   }
 
   function renderPeekIntroScreen(round, mouse){
+    playVoiceFile("這回合只有你睜眼，請查看1位玩家的點數.mp3");
     render(`
       <div class="screen night-screen">
         <div class="moon">🌙</div>
@@ -956,6 +1004,7 @@
   }
 
   function renderAccompliceChoiceScreen(){
+    playVoiceFile("現在請奶酪大盜選擇你的共犯 .mp3");
     const candidates = state.pendingAccompliceChoice.candidates;
     render(`
       <div class="screen night-screen">
@@ -979,6 +1028,7 @@
   }
 
   function beginAccompliceAssignment(){
+    playVoiceFile("奶酪大盜選擇共犯中.mp3");
     const n = state.players.length;
     const required = n === 6 ? 1 : 2;
     state.pendingAccompliceAssign = { required, chosen: [] };
@@ -1044,6 +1094,7 @@
   }
 
   function renderAccompliceRevealScreen(reveal){
+    playVoiceFile("你被奶酪大盜選擇作為共犯.mp3");
     render(`
       <div class="screen night-screen">
         <h2>🤝 ${reveal.player.name}：共犯相認</h2>
@@ -1149,6 +1200,9 @@
 
   // ---------- Screen 5: Game over ----------
   function screenGameOver(mouseWin, tally, topIds){
+    playVoiceFile(mouseWin
+      ? "遊戲結束，貪睡鼠陣營獲勝.mp3"
+      : "遊戲結束，奶酪大盜與共犯獲勝.mp3");
     const bannerClass = mouseWin ? "mouse-win" : "thief-win";
     const bannerText = mouseWin
       ? "🎉 貪睡鼠陣營獲勝！大盜被抓到了！"

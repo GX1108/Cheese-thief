@@ -305,6 +305,17 @@
   let ttsVoice = null;
   let bgmVolume = parseFloat(localStorage.getItem("bgmVolume") || "0.5");
   let bgmStarted = false;
+  let voiceQueue = Promise.resolve();
+
+  const VOICE_FILES = new Map([
+    ["遊戲準備開始，請確認自己的角色與骰子點數", "遊戲準備開始，請所有玩家確認自己的角色和骰子點數.mp3"],
+    ["最後20秒思考，時間結束後開始投票", "最後20秒思考，時間結束後開始投票.mp3"],
+    ["這回合只有你睜眼，請查看一位玩家的骰子點數", "這回合只有你睜眼，請查看1位玩家的點數.mp3"],
+    ["請奶酪大盜選擇你的共犯", "現在請奶酪大盜選擇你的共犯 .mp3"],
+    ["大盜正在選擇共犯中", "奶酪大盜選擇共犯中.mp3"],
+    ["你被大盜選擇做為共犯", "你被奶酪大盜選擇作為共犯.mp3"],
+    ["請大家開始投票", "現在請大家開始投票.mp3"]
+  ]);
 
   const ROLE_IMAGE = {
     [ROLE.THIEF]: "picture/奶酪大盜.png",
@@ -336,15 +347,55 @@
   }
 
   function speak(text){
-    if (!window.speechSynthesis) return;
-    // Always resume to reset Chrome's stuck state after cancel()
-    speechSynthesis.resume();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = "zh-TW";
-    utter.rate = 1.05;
-    utter.volume = masterVolume;
-    if (ttsVoice) utter.voice = ttsVoice;
-    speechSynthesis.speak(utter);
+    const voiceFile = VOICE_FILES.get(text);
+    if (voiceFile) return playVoiceFile(voiceFile);
+    const roundMatch = text.match(/^現在([1-6])點了，請骰到\1點的玩家行動$/);
+    if (roundMatch) return playVoiceFile(`現在${roundMatch[1]}點了 請骰到${roundMatch[1]}點的玩家行動.mp3`);
+    if (text.includes("貪睡鼠陣營獲得勝利")) return playVoiceFile("遊戲結束，貪睡鼠陣營獲勝.mp3");
+    if (text.includes("大盜與共犯獲得勝利")) return playVoiceFile("遊戲結束，奶酪大盜與共犯獲勝.mp3");
+    if (text.includes("背鍋鼠獨自獲得勝利")) return playVoiceFile("遊戲結束，背鍋鼠獲勝.mp3");
+    if (!window.speechSynthesis) return Promise.resolve();
+    return speakDynamic(text);
+  }
+
+  function playVoiceFile(fileName){
+    voiceQueue = voiceQueue.then(() => playVoiceFileNow(fileName));
+    return voiceQueue;
+  }
+
+  function playVoiceFileNow(fileName){
+    return new Promise(resolve => {
+      const audio = new Audio(`voice/${fileName}`);
+      audio.volume = masterVolume;
+      audio.onended = resolve;
+      audio.onerror = resolve;
+      audio.play().catch(resolve);
+    });
+  }
+
+  function speakDynamic(text){
+    if (!window.speechSynthesis) return Promise.resolve();
+    return new Promise(resolve => {
+      speechSynthesis.resume();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "zh-TW";
+      utter.rate = 1.05;
+      utter.volume = masterVolume;
+      if (ttsVoice) utter.voice = ttsVoice;
+      utter.onend = resolve;
+      utter.onerror = resolve;
+      speechSynthesis.speak(utter);
+    });
+  }
+
+  function playVoiceParts(parts){
+    voiceQueue = voiceQueue.then(async () => {
+      for (const part of parts) {
+        if (part.type === "file") await playVoiceFileNow(part.value);
+        else await speakDynamic(part.value);
+      }
+    });
+    return voiceQueue;
   }
 
   function scheduleSpeech(text, delayMs){
@@ -1101,9 +1152,15 @@
         </div>
       `);
       startCountdownTo(roundEndsAt, timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
-      speak(msg.names && msg.names.length
-        ? `這回合你與${msg.names.join("、")}同時睜眼`
-        : "這回合你睜眼了");
+      if (msg.names && msg.names.length) {
+        playVoiceParts([
+          { type: "file", value: "這回合你與.mp3" },
+          { type: "text", value: msg.names.join("、") },
+          { type: "file", value: "同時睜眼.mp3" }
+        ]);
+      } else {
+        speak("這回合你睜眼了");
+      }
       scheduleCountdown(roundEndsAt);
     } else if(msg.action === "peekPrompt"){
       setView("nightAction");
