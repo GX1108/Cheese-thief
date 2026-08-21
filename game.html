@@ -939,10 +939,7 @@
   }
 
   function renderMutualConfirmScreen(round, mice){
-    playVoiceSequence(
-      ["這回合你與.mp3", "同時睜眼.mp3"],
-      mice.map(m => m.name).join("、")
-    );
+    playVoiceFile("你與他同時睜眼.mp3");
     render(`
       <div class="screen night-screen">
         <div class="moon">🌙</div>
@@ -1011,6 +1008,9 @@
           </div>
           <button class="btn secondary" id="peekDoneBtn">確認已記住</button>
         `;
+        playVoiceSequence(
+          ["他的骰子點數是.mp3", `${target.dice}.mp3`]
+        );
         document.querySelectorAll("#app .vote-grid button").forEach(b => b.disabled = true);
         document.getElementById("peekDoneBtn").onclick = () => {
           state.pendingPeek = null;

@@ -410,7 +410,7 @@
   function scheduleCountdown(endAt){
     for (let number = 5; number >= 1; number--) {
       const delay = endAt - Date.now() - number * 1000;
-      const timer = setTimeout(() => playVoiceFile(`voice/${number}.mp3`), Math.max(0, delay));
+      const timer = setTimeout(() => playVoiceFileNow(`${number}.mp3`), Math.max(0, delay));
       voiceTimers.push(timer);
     }
   }
@@ -1158,11 +1158,7 @@
       `);
       startCountdownTo(roundEndsAt, timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
       if (msg.names && msg.names.length) {
-        playVoiceParts([
-          { type: "file", value: "這回合你與.mp3" },
-          { type: "text", value: msg.names.join("、") },
-          { type: "file", value: "同時睜眼.mp3" }
-        ]);
+        playVoiceFile("你與他同時睜眼.mp3");
       } else {
         speak("這回合你睜眼了");
       }
@@ -1210,6 +1206,7 @@
       </div>
     `);
     startCountdownTo(roundEndsAt, 20000, "peekResultCountdown", "peekResultCountdownBar", "本回合結束");
+    playVoiceSequence(["他的骰子點數是.mp3", `${msg.dice}.mp3`]);
   }
 
   function showChooseAccomplice(msg){
