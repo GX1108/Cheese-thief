@@ -328,6 +328,24 @@
     SCAPEGOAT: "picture/背鍋鼠.png"
   };
 
+  const PRELOAD_IMAGES = Object.values(ROLE_IMAGE);
+  const PRELOAD_VOICES = [
+    ...VOICE_FILES.values(),
+    "1.mp3", "2.mp3", "3.mp3", "4.mp3", "5.mp3", "6.mp3"
+  ];
+
+  function preloadGameAssets(){
+    PRELOAD_IMAGES.forEach(src => {
+      const image = new Image();
+      image.src = src;
+    });
+    [...new Set(PRELOAD_VOICES)].forEach(fileName => {
+      const audio = new Audio();
+      audio.preload = "auto";
+      audio.src = `voice/${fileName}`;
+    });
+  }
+
   function render(html){
     app.innerHTML = html;
     document.body.classList.toggle("home-bg", html.includes('id="createBtn"'));
@@ -1511,6 +1529,7 @@
   }
 
   // Init
+  preloadGameAssets();
   connect();
   screenHome();
 })();
