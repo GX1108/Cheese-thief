@@ -331,6 +331,12 @@
   const PRELOAD_IMAGES = Object.values(ROLE_IMAGE);
   const PRELOAD_VOICES = [
     ...VOICE_FILES.values(),
+    "現在1點了 請骰到1點的玩家行動.mp3",
+    "現在2點了 請骰到2點的玩家行動.mp3",
+    "現在3點了 請骰到3點的玩家行動.mp3",
+    "現在4點了 請骰到4點的玩家行動.mp3",
+    "現在5點了 請骰到5點的玩家行動.mp3",
+    "現在6點了 請骰到6點的玩家行動.mp3",
     "1.mp3", "2.mp3", "3.mp3", "4.mp3", "5.mp3", "6.mp3"
   ];
 
@@ -384,7 +390,10 @@
   }
 
   function playVoiceFile(fileName){
-    voiceQueue = voiceQueue.then(() => primeVoiceAudio().then(() => playVoiceFileNow(fileName)));
+    voiceQueue = voiceQueue.then(() => {
+      primeVoiceAudio();
+      return playVoiceFileNow(fileName);
+    });
     return voiceQueue;
   }
 
