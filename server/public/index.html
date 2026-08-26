@@ -1196,7 +1196,7 @@
 
   function screenDayThink(thinkEndsAt, durationMs){
     clearUiTimers();
-    setSpeakingOrderBarVisible(false);
+    renderSpeakingOrderBar();
     setView("dayThink");
     render(`
       <div class="screen">
