@@ -223,6 +223,12 @@
   .conn-status{ position:fixed; top:10px; right:10px; font-size:.75rem; padding:6px 10px; border-radius:8px; background:#30363d; color:var(--text-dim); }
   .conn-status.online{ color:#7ee787; }
   .conn-status.offline{ color: var(--accent-2); }
+  .speaking-order-bar{
+    position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:200;
+    max-width:calc(100vw - 240px); padding:6px 12px; border-radius:8px;
+    background:#30363d; color:var(--text); font-size:.8rem; text-align:center;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
   .countdown-box{ margin: 14px 0 18px; }
   .countdown-track{
     width: 100%;
@@ -260,6 +266,7 @@
 </head>
 <body>
 <div id="conn" class="conn-status offline">連線中...</div>
+<div id="speakingOrderBar" class="speaking-order-bar hidden"></div>
 <button id="volumeBtn" class="volume-btn">🔊</button>
 <div id="volumePanel" class="volume-panel hidden">
   <p>🎵 背景音量</p>
@@ -1189,6 +1196,7 @@
 
   function screenDayThink(thinkEndsAt, durationMs){
     clearUiTimers();
+    setSpeakingOrderBarVisible(false);
     setView("dayThink");
     render(`
       <div class="screen">
@@ -1206,17 +1214,30 @@
 
   function screenSpeakingOrder(order){
     clearUiTimers();
+    setSpeakingOrderBarVisible(false);
     setView("speakingOrder");
     const names = Array.isArray(order) ? order : [];
     render(`
       <div class="screen">
-        <div class="day-banner">☀️ 思考時間結束</div>
+        <div class="day-banner">☀️ 即將開始思考時間</div>
         <h2>發言順序</h2>
         <div class="reveal-box"><div class="role-name mouse">${names.map(escapeHtml).join(" → ")}</div></div>
         <p>即將進入投票。</p>
       </div>
     `);
-    speak(`發言順序：${names.join("、")}`);
+  }
+
+  function setSpeakingOrderBarVisible(visible){
+    const bar = document.getElementById("speakingOrderBar");
+    if (!bar) return;
+    bar.classList.toggle("hidden", !visible);
+  }
+
+  function renderSpeakingOrderBar(){
+    const bar = document.getElementById("speakingOrderBar");
+    if (!bar) return;
+    bar.textContent = `發言順序：${state.speakingOrder.map(escapeHtml).join(" → ")}`;
+    setSpeakingOrderBarVisible(true);
   }
 
   function handleNightAction(msg){
@@ -1440,15 +1461,13 @@
   // ---------- Screen: Day & Vote ----------
   function screenDayVote(){
     clearUiTimers();
+    renderSpeakingOrderBar();
     setView("dayVote");
     speak("請大家開始投票");
     const room = state.room;
     const stolenMsg = "黑夜結束！奶酪不見了！";
     render(`
       <div class="screen">
-        <div style="text-align:center; margin-bottom:16px;">
-          <strong>發言順序：</strong>${state.speakingOrder.map(escapeHtml).join(" → ")}
-        </div>
         <div class="day-banner">☀️ ${stolenMsg}</div>
         <p>請所有玩家開始自由討論（建議自行計時），討論結束後進行投票。</p>
         <h2>請投出你懷疑的對象</h2>

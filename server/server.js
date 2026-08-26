@@ -383,19 +383,19 @@ function resolveAccompliceAssign(room, thiefId, targetIds) {
 
 function startDayPhase(room) {
   clearRoomTimer(room);
-  const thinkEndsAt = Date.now() + THINK_PHASE_MS;
-  room.status = "day-think";
-  broadcast(room, "dayStart", { durationMs: THINK_PHASE_MS, thinkEndsAt });
+  const speakingOrder = shuffle([...room.players.values()].map(player => player.name));
+  room.status = "day-speaking-order";
+  broadcast(room, "speakingOrder", { order: speakingOrder });
   room.nightTimer = setTimeout(() => {
-    const speakingOrder = shuffle([...room.players.values()].map(player => player.name));
-    room.status = "day-speaking-order";
+    const thinkEndsAt = Date.now() + THINK_PHASE_MS;
+    room.status = "day-think";
     room.votes = new Map();
-    broadcast(room, "speakingOrder", { order: speakingOrder });
+    broadcast(room, "dayStart", { durationMs: THINK_PHASE_MS, thinkEndsAt });
     room.nightTimer = setTimeout(() => {
       room.status = "day";
       broadcast(room, "dayVoteStart", { thinkEndsAt });
-    }, SPEAKING_ORDER_MS);
-  }, THINK_PHASE_MS);
+    }, THINK_PHASE_MS);
+  }, SPEAKING_ORDER_MS);
 }
 
 function registerVote(room, voterId, targetId) {
