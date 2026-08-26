@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>奶酪大盜 Cheese Thief - 連線版</title>
+<style>
+  :root{
+    --bg-dark: #0d1117;
+    --bg-panel: #161b22;
+    --accent: #f5c518;
+    --accent-2: #ff6b6b;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --night: #05070d;
+  }
+  *{ box-sizing: border-box; }
+  html, body{
+    margin:0; padding:0; height:100%;
+    font-family: "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif;
+    background: radial-gradient(circle at 50% 0%, #1b2230 0%, var(--bg-dark) 60%);
+    color: var(--text);
+    transition: background .3s;
+  }
+  body.home-bg{
+    background:
+      linear-gradient(rgba(5,7,13,0.55), rgba(13,17,23,0.85)),
+      url("picture/背景.png") center/cover no-repeat;
+  }
+  #app{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding: 20px;
+  }
+  .screen{
+    width:100%;
+    max-width: 640px;
+    background: var(--bg-panel);
+    border-radius: 18px;
+    padding: 28px 24px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    text-align:center;
+    animation: fadeIn .4s ease;
+  }
+  @keyframes fadeIn{
+    from{ opacity:0; transform: translateY(10px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  h1{ font-size: 2rem; margin: 0 0 6px; color: var(--accent); letter-spacing: 2px; }
+  h2{ font-size: 1.4rem; margin: 0 0 16px; }
+  p{ line-height:1.6; color: var(--text-dim); }
+  .subtitle{ margin-bottom: 24px; color: var(--text-dim); }
+
+  input[type=number], input[type=password], input[type=text]{
+    width: 100%;
+    max-width: 240px;
+    font-size: 1.1rem;
+    text-align:center;
+    padding: 10px;
+    border-radius: 10px;
+    border: 2px solid #30363d;
+    background: #0d1117;
+    color: var(--text);
+    margin: 10px 0;
+  }
+
+  .btn{
+    display:inline-block;
+    font-size: 1.1rem;
+    font-weight: bold;
+    padding: 16px 28px;
+    margin: 8px 6px;
+    border: none;
+    border-radius: 14px;
+    background: var(--accent);
+    color: #1b1b1b;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+    min-width: 140px;
+  }
+  .btn:hover{ transform: translateY(-2px); box-shadow: 0 6px 18px rgba(245,197,24,0.35); }
+  .btn:active{ transform: translateY(0); }
+  .btn.secondary{ background: #30363d; color: var(--text); }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; transform:none; box-shadow:none; }
+  .btn.small{ padding: 10px 16px; min-width: 96px; font-size: .95rem; }
+
+  .home-buttons{ display:flex; flex-direction:column; gap:14px; margin-top:24px; }
+  .home-buttons .btn{ padding: 22px 28px; font-size: 1.3rem; }
+
+  .corner-btn{
+    position: fixed;
+    top: 44px;
+    font-size: .8rem;
+    font-weight: bold;
+    padding: 8px 14px;
+    min-width: unset;
+    margin: 0;
+    border-radius: 10px;
+    z-index: 10;
+  }
+  .corner-btn.top-left{ left: 14px; }
+  .corner-btn.top-right{ right: 14px; }
+
+  .role-intro-grid{ display:flex; flex-direction:column; gap: 18px; margin: 16px 0; }
+  .role-intro-card{ background:#0d1117; border: 2px solid #30363d; border-radius: 14px; padding: 16px; text-align:center; }
+  .role-intro-card img{ width: 130px; max-width: 60%; border-radius: 12px; margin: 0 auto 10px; display:block; box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
+  .role-intro-card h3{ margin: 0 0 8px; }
+  .role-intro-card p{ margin:0; text-align:left; }
+
+  .toggle-group{ display:flex; gap:10px; justify-content:center; margin: 14px 0; }
+  .toggle-group button{
+    flex:1; max-width: 180px; padding: 12px; border-radius: 12px;
+    border: 2px solid #30363d; background: #0d1117; color: var(--text-dim);
+    cursor:pointer; font-size: 1rem; transition: all .15s;
+  }
+  .toggle-group button.active{ border-color: var(--accent); color: var(--accent); background: rgba(245,197,24,0.1); }
+
+  .room-code{ font-size: 2.4rem; font-weight:bold; color: var(--accent); letter-spacing: 4px; margin: 10px 0; }
+
+  .room-list{ display:flex; flex-direction:column; gap:10px; margin: 18px 0; text-align:left; }
+  .room-card{
+    background:#0d1117; border: 2px solid #30363d; border-radius: 12px; padding: 14px 16px;
+    cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition: border-color .15s;
+  }
+  .room-card:hover{ border-color: var(--accent); }
+  .room-card .room-code-small{ font-weight:bold; color: var(--accent); font-size: 1.2rem; }
+  .room-card .room-tag{ font-size: .8rem; color: var(--text-dim); }
+  .empty-hint{ color: var(--text-dim); padding: 20px 0; }
+  .error-text{ color: var(--accent-2); font-size: .9rem; margin: 4px 0; min-height: 1.2em; }
+
+  .player-list{ display:flex; flex-direction:column; gap:8px; margin: 16px 0; text-align:left; }
+  .player-chip{
+    background:#0d1117; border-radius: 10px; padding: 10px 14px;
+    display:flex; justify-content:space-between; font-size: .95rem;
+  }
+  .player-chip .tag{ color: var(--text-dim); font-size: .8rem; }
+
+  .reveal-box{
+    margin: 20px 0; padding: 24px; border-radius: 16px;
+    background: linear-gradient(135deg, #1f2937, #111827); border: 2px solid var(--accent);
+    animation: pop .3s ease;
+  }
+  @keyframes pop{ from{ transform: scale(.9); opacity:0; } to{ transform: scale(1); opacity:1; } }
+  .role-card-img{ width: 150px; max-width: 60%; border-radius: 12px; margin: 0 auto 12px; display: block; box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
+  .role-name{ font-size: 1.8rem; font-weight: bold; margin-bottom: 8px; }
+  .role-name.thief{ color: var(--accent-2); }
+  .role-name.accomplice{ color: #c084fc; }
+  .role-name.mouse{ color: #7dd3fc; }
+  .dice{ font-size: 3rem; margin: 10px 0; }
+
+  .night-screen{ background: var(--night); border: 1px solid #222; }
+  .night-screen h2{ color: var(--accent); }
+  .round-counter{ font-size: 4rem; font-weight: bold; margin: 20px 0; color: var(--accent); text-shadow: 0 0 20px rgba(245,197,24,0.4); }
+  .moon{ font-size: 3rem; }
+
+  .day-banner{ font-size: 1.6rem; font-weight: bold; color: var(--accent); margin-bottom: 6px; }
+
+  .vote-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin: 20px 0; }
+  .vote-grid .btn{ margin:0; min-width: unset; width: 100%; }
+  .vote-status{ color: var(--text-dim); margin-bottom: 6px; }
+
+  table.result-table{ width:100%; border-collapse: collapse; margin-top: 16px; font-size: .95rem; }
+  table.result-table th, table.result-table td{ padding: 8px 6px; border-bottom: 1px solid #30363d; text-align:center; }
+  table.result-table th{ color: var(--accent); }
+
+  .winner-banner{ font-size: 1.8rem; font-weight: bold; margin: 10px 0 18px; padding: 16px; border-radius: 12px; }
+  .winner-banner.mouse-win{ background: rgba(125,211,252,0.15); color: #7dd3fc; border: 2px solid #7dd3fc; }
+  .winner-banner.thief-win{ background: rgba(255,107,107,0.15); color: var(--accent-2); border: 2px solid var(--accent-2); }
+  .winner-banner.scapegoat-win{ background: rgba(192,132,252,0.15); color: #c084fc; border: 2px solid #c084fc; }
+  .cheese-status-card{
+    margin: 14px 0 18px;
+    border-radius: 14px;
+    padding: 14px 16px;
+    border: 2px solid #30363d;
+    background: #0d1117;
+  }
+  .cheese-status-card.safe{ border-color: #7ee787; color: #7ee787; }
+  .cheese-status-card.missing{ border-color: var(--accent-2); color: var(--accent-2); }
+  .cheese-status-emoji{ font-size: 2.4rem; margin-bottom: 8px; }
+  .cheese-status-card.theft-alert{
+    position: relative;
+    animation: theftPulse .8s ease-in-out infinite alternate;
+    box-shadow: 0 0 0 rgba(255, 107, 107, 0.0);
+  }
+  .cheese-status-card.theft-alert::after{
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border: 2px solid rgba(255, 107, 107, 0.45);
+    border-radius: 18px;
+    animation: theftRing 1.1s ease-out infinite;
+    pointer-events: none;
+  }
+  .cheese-status-emoji.alert{ animation: theftShake .38s ease-in-out infinite; }
+  .theft-text{
+    margin-top: 6px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    letter-spacing: .03em;
+    color: #ff8a8a;
+    text-shadow: 0 0 10px rgba(255, 107, 107, .6);
+  }
+  @keyframes theftPulse{
+    from{ box-shadow: 0 0 0 rgba(255, 107, 107, 0.0); transform: scale(1); }
+    to{ box-shadow: 0 0 24px rgba(255, 107, 107, 0.55); transform: scale(1.015); }
+  }
+  @keyframes theftRing{
+    0%{ opacity: .7; transform: scale(1); }
+    100%{ opacity: 0; transform: scale(1.08); }
+  }
+  @keyframes theftShake{
+    0%{ transform: translateX(0); }
+    25%{ transform: translateX(-2px) rotate(-2deg); }
+    50%{ transform: translateX(2px) rotate(2deg); }
+    75%{ transform: translateX(-1px) rotate(-1deg); }
+    100%{ transform: translateX(0); }
+  }
+
+  .log-box{ text-align:left; max-height: 200px; overflow-y:auto; background:#0d1117; border-radius: 10px; padding: 12px 16px; margin-top: 14px; font-size: .9rem; color: var(--text-dim); }
+  .conn-status{ position:fixed; top:10px; right:10px; font-size:.75rem; padding:6px 10px; border-radius:8px; background:#30363d; color:var(--text-dim); }
+  .conn-status.online{ color:#7ee787; }
+  .conn-status.offline{ color: var(--accent-2); }
+  .speaking-order-bar{
+    position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:200;
+    max-width:calc(100vw - 240px); padding:6px 12px; border-radius:8px;
+    background:#30363d; color:var(--text); font-size:.8rem; text-align:center;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .countdown-box{ margin: 14px 0 18px; }
+  .countdown-track{
+    width: 100%;
+    height: 10px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .countdown-fill{
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #f5c518, #ff6b6b);
+    transform-origin: left center;
+    transition: transform .1s linear;
+  }
+  .countdown-text{ margin-top: 8px; color: var(--text-dim); font-size: .95rem; }
+
+  .hidden{ display:none !important; }
+  .footer-note{ margin-top: 18px; font-size: .8rem; color: #444c56; }
+  .volume-btn{
+    position: fixed; top: 10px; left: 10px; z-index: 200;
+    background: #30363d; color: var(--text); border: none;
+    border-radius: 8px; padding: 6px 10px; font-size: .85rem;
+    font-weight: bold; cursor: pointer; min-width: unset;
+  }
+  .volume-panel{
+    position: fixed; top: 44px; left: 10px; z-index: 200;
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+    padding: 14px 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); min-width: 160px;
+  }
+  .volume-panel p{ font-size:.8rem; color:var(--text-dim); margin:0 0 8px; }
+  .volume-panel input[type=range]{ width:100%; max-width:100%; margin:0; accent-color:var(--accent); cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="conn" class="conn-status offline">連線中...</div>
+<div id="speakingOrderBar" class="speaking-order-bar hidden"></div>
+<button id="volumeBtn" class="volume-btn">🔊</button>
+<div id="volumePanel" class="volume-panel hidden">
+  <p>🎵 背景音量</p>
+  <input type="range" id="bgmSlider" min="0" max="1" step="0.05" value="0.5">
+  <p style="margin-top:12px;">🎙️ 遊戲語音</p>
+  <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.8">
+</div>
+<audio id="bgm" src="music/bgm.mp3" loop preload="auto"></audio>
+<div id="app"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const ROLE = { THIEF: "奶酪大盜", MOUSE: "貪睡鼠" };
+
+  const state = {
+    playerName: localStorage.getItem("playerName") || "",
+    room: null,      // lobby summary from server
+    yourId: null,
+    isHost: false,
+    myRole: null,
+    myDice: null,
+    readyCount: 0,
+    votedCount: 0,
+    hasVoted: false,
+    joinCode: "",
+    currentNightRound: 0,
+    currentRoundEndsAt: 0,
+    speakingOrder: [],
+    serverClockOffset: 0,
+    currentView: "home",
+    pendingReplay: false
+  };
+
+  const app = document.getElementById("app");
+  const connEl = document.getElementById("conn");
+  let uiTimer = null;
+  let uiInterval = null;
+  let speechTimers = [];
+  let voiceTimers = [];
+  let speechUnlocked = false;
+  let audioCtx = null;
+  let masterGainNode = null;
+  let masterVolume = parseFloat(localStorage.getItem("masterVolume") || "0.8");
+  let ttsVoice = null;
+  let bgmVolume = parseFloat(localStorage.getItem("bgmVolume") || "0.5");
+  let bgmStarted = false;
+  let voiceQueue = Promise.resolve();
+  const voiceAssets = new Map();
+  let countdownAudio = null;
+  let voiceUnlocked = false;
+  let voiceUnlocking = null;
+
+  const VOICE_FILES = new Map([
+    ["遊戲準備開始，請確認自己的角色與骰子點數", "遊戲準備開始，請所有玩家確認自己的角色和骰子點數.mp3"],
+    ["最後20秒思考，時間結束後開始投票", "最後20秒思考，時間結束後開始投票.mp3"],
+    ["這回合只有你睜眼，請查看一位玩家的骰子點數", "這回合只有你睜眼，請查看1位玩家的點數.mp3"],
+    ["請奶酪大盜選擇你的共犯", "現在請奶酪大盜選擇你的共犯 .mp3"],
+    ["大盜正在選擇共犯中", "奶酪大盜選擇共犯中.mp3"],
+    ["你被大盜選擇做為共犯", "你被奶酪大盜選擇作為共犯.mp3"],
+    ["請大家開始投票", "現在請大家開始投票.mp3"]
+  ]);
+
+  const ROLE_IMAGE = {
+    [ROLE.THIEF]: "picture/奶酪大盜.png",
+    [ROLE.MOUSE]: "picture/貪睡鼠.png",
+    SCAPEGOAT: "picture/背鍋鼠.png"
+  };
+
+  const PRELOAD_IMAGES = Object.values(ROLE_IMAGE);
+  const PRELOAD_VOICES = [
+    ...VOICE_FILES.values(),
+    "現在1點了 請骰到1點的玩家行動.mp3",
+    "現在2點了 請骰到2點的玩家行動.mp3",
+    "現在3點了 請骰到3點的玩家行動.mp3",
+    "現在4點了 請骰到4點的玩家行動.mp3",
+    "現在5點了 請骰到5點的玩家行動.mp3",
+    "現在6點了 請骰到6點的玩家行動.mp3",
+    "他的骰子點數是.mp3",
+    "你與他同時睜眼.mp3",
+    "1.mp3", "2.mp3", "3.mp3", "4.mp3", "5.mp3", "6.mp3"
+  ];
+
+  function preloadGameAssets(){
+    PRELOAD_IMAGES.forEach(src => {
+      const image = new Image();
+      image.src = src;
+    });
+    [...new Set(PRELOAD_VOICES)].forEach(fileName => {
+      const audio = new Audio();
+      audio.preload = "auto";
+      audio.src = `voice/${fileName}`;
+      voiceAssets.set(fileName, audio);
+    });
+  }
+
+  function render(html){
+    app.innerHTML = html;
+    document.body.classList.toggle("home-bg", html.includes('id="createBtn"'));
+  }
+
+  function setView(view){
+    state.currentView = view;
+  }
+
+  function clearSpeechTimers(){
+    speechTimers.forEach(t => clearTimeout(t));
+    speechTimers = [];
+    voiceTimers.forEach(t => clearTimeout(t));
+    voiceTimers = [];
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  function clearUiTimers(){
+    clearTimeout(uiTimer);
+    clearInterval(uiInterval);
+    uiTimer = null;
+    uiInterval = null;
+    clearSpeechTimers();
+  }
+
+  function speak(text){
+    const voiceFile = VOICE_FILES.get(text);
+    if (voiceFile) return playVoiceFile(voiceFile);
+    const roundMatch = text.match(/^現在([1-6])點了，請骰到\1點的玩家行動$/);
+    if (roundMatch) return playVoiceFile(`現在${roundMatch[1]}點了 請骰到${roundMatch[1]}點的玩家行動.mp3`);
+    if (text.includes("貪睡鼠陣營獲得勝利")) return playVoiceFile("遊戲結束，貪睡鼠陣營獲勝.mp3");
+    if (text.includes("大盜與共犯獲得勝利")) return playVoiceFile("遊戲結束，奶酪大盜與共犯獲勝.mp3");
+    if (text.includes("背鍋鼠獨自獲得勝利")) return playVoiceFile("遊戲結束，背鍋鼠獲勝.mp3");
+    if (!window.speechSynthesis) return Promise.resolve();
+    return speakDynamic(text);
+  }
+
+  function playVoiceFile(fileName){
+    voiceQueue = voiceQueue.then(() => {
+      primeVoiceAudio();
+      return playVoiceFileNow(fileName);
+    });
+    return voiceQueue;
+  }
+
+  function playVoiceFileNow(fileName){
+    return new Promise(resolve => {
+      const audio = voiceAssets.get(fileName) || new Audio(`voice/${fileName}`);
+      audio.currentTime = 0;
+      audio.volume = masterVolume;
+      const finish = () => {
+        audio.onended = null;
+        audio.onerror = null;
+        resolve();
+      };
+      audio.onended = finish;
+      audio.onerror = finish;
+      audio.play().catch(finish);
+    });
+  }
+
+  function primeVoiceAudio(){
+    if (voiceUnlocked) return Promise.resolve();
+    if (voiceUnlocking) return voiceUnlocking;
+    const audio = new Audio("voice/1.mp3");
+    audio.volume = 0;
+    voiceUnlocking = audio.play().then(() => {
+      voiceUnlocked = true;
+      audio.pause();
+      audio.currentTime = 0;
+    }).catch(() => {}).finally(() => { voiceUnlocking = null; });
+    return voiceUnlocking;
+  }
+
+  function speakDynamic(text){
+    if (!window.speechSynthesis) return Promise.resolve();
+    return new Promise(resolve => {
+      speechSynthesis.resume();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "zh-TW";
+      utter.rate = 1.05;
+      utter.volume = masterVolume;
+      if (ttsVoice) utter.voice = ttsVoice;
+      utter.onend = resolve;
+      utter.onerror = resolve;
+      speechSynthesis.speak(utter);
+    });
+  }
+
+  function playVoiceParts(parts){
+    voiceQueue = voiceQueue.then(async () => {
+      for (const part of parts) {
+        if (part.type === "file") await playVoiceFileNow(part.value);
+        else await speakDynamic(part.value);
+      }
+    });
+    return voiceQueue;
+  }
+
+  function playDiceResultVoice(dice){
+    playVoiceFile("他的骰子點數是.mp3").then(() => playVoiceFile(`${dice}.mp3`));
+  }
+
+  function playCountdownVoiceNow(number){
+    return new Promise(resolve => {
+      if (countdownAudio) countdownAudio.pause();
+      const audio = voiceAssets.get(`${number}.mp3`) || new Audio(`voice/${number}.mp3`);
+      countdownAudio = audio;
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(stopTimer);
+        audio.pause();
+        audio.currentTime = 0;
+        if (countdownAudio === audio) countdownAudio = null;
+        resolve();
+      };
+      const stopTimer = setTimeout(finish, 1000);
+      audio.currentTime = 0;
+      audio.volume = masterVolume;
+      audio.onended = finish;
+      audio.onerror = finish;
+      audio.play().catch(finish);
+    });
+  }
+
+  function scheduleSpeech(text, delayMs){
+    if (!window.speechSynthesis) return;
+    const t = setTimeout(() => speak(text), Math.max(0, delayMs));
+    speechTimers.push(t);
+  }
+
+  function scheduleCountdown(endAt){
+    for (let number = 5; number >= 1; number--) {
+      const delay = endAt - Date.now() - number * 1000;
+      const timer = setTimeout(() => playCountdownVoiceNow(number), Math.max(0, delay));
+      voiceTimers.push(timer);
+    }
+  }
+
+  function ensureAudio(){
+    if (audioCtx) return audioCtx;
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return null;
+    audioCtx = new AudioCtor();
+    masterGainNode = audioCtx.createGain();
+    masterGainNode.gain.value = masterVolume;
+    masterGainNode.connect(audioCtx.destination);
+    return audioCtx;
+  }
+
+  function startBgm(){
+    if (bgmStarted) return;
+    bgmStarted = true;
+    const bgm = document.getElementById("bgm");
+    if (!bgm) return;
+    bgm.volume = bgmVolume;
+    bgm.play().catch(() => {});
+  }
+
+  function unlockAudio(){
+    primeVoiceAudio();
+    const ctx = ensureAudio();
+    if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+    // Unlock speech synthesis on first gesture (required on mobile Chrome)
+    if (!speechUnlocked && window.speechSynthesis) {
+      speechUnlocked = true;
+      const primer = new SpeechSynthesisUtterance(" ");
+      primer.volume = 0.05;
+      primer.rate = 10;
+      speechSynthesis.speak(primer);
+    }
+    startBgm();
+  }
+
+  function playCue(type){
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const doPlay = () => {
+      const now = ctx.currentTime;
+      const notes = type === "confirm"
+        ? [{ freq: 740, at: 0, len: 0.12 }, { freq: 988, at: 0.14, len: 0.16 }]
+        : [{ freq: 523, at: 0, len: 0.08 }, { freq: 659, at: 0.1, len: 0.08 }, { freq: 784, at: 0.2, len: 0.12 }];
+      notes.forEach(note => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = note.freq;
+        gain.gain.setValueAtTime(0.0001, now + note.at);
+        gain.gain.exponentialRampToValueAtTime(0.08, now + note.at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + note.at + note.len);
+        osc.connect(gain).connect(masterGainNode || ctx.destination);
+        osc.start(now + note.at);
+        osc.stop(now + note.at + note.len + 0.02);
+      });
+    };
+    if (ctx.state === "running") { doPlay(); }
+    else { ctx.resume().then(doPlay).catch(() => {}); }
+  }
+
+  function initTtsVoice(){
+    if (!window.speechSynthesis) return;
+    const voices = speechSynthesis.getVoices();
+    ttsVoice = voices.find(v => v.lang === "zh-TW")
+      || voices.find(v => v.lang === "zh-HK")
+      || voices.find(v => v.lang.startsWith("zh"))
+      || null;
+  }
+  if (window.speechSynthesis) {
+    initTtsVoice();
+    speechSynthesis.onvoiceschanged = initTtsVoice;
+  }
+
+  ["pointerdown", "keydown", "touchstart"].forEach(eventName => {
+    window.addEventListener(eventName, unlockAudio, { passive: true });
+  });
+
+  // Play a short click tick; handle suspended AudioContext on mobile.
+  document.addEventListener("pointerdown", e => {
+    const btn = e.target.closest("button");
+    if (!btn || btn.disabled || btn.id === "volumeBtn") return;
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const playClick = () => {
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(900, now);
+      osc.frequency.exponentialRampToValueAtTime(500, now + 0.05);
+      gain.gain.setValueAtTime(0.10, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+      osc.connect(gain).connect(masterGainNode || ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    };
+    if (ctx.state === "running") { playClick(); }
+    else if (ctx.state === "suspended") { ctx.resume().then(playClick).catch(() => {}); }
+  }, { passive: true });
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, ch => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[ch]));
+  }
+
+  function padCode(code){ return String(code).padStart(3, "0"); }
+
+  // ---------- WebSocket ----------
+  let ws = null;
+  let wsReady = false;
+  let reconnectTimer = null;
+  let reconnectAttempts = 0;
+  let isReconnecting = false;
+
+  function getWsUrl(){
+    const params = new URLSearchParams(location.search);
+    const customServer = params.get("server");
+    const origin = customServer
+      ? customServer
+      : (location.hostname.endsWith("github.io")
+          ? "https://cheese-thief-ws.onrender.com"
+          : location.origin);
+    const parsed = new URL(origin);
+    const wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProto}//${parsed.host}`;
+  }
+
+  function connect(){
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+    const url = getWsUrl();
+    ws = new WebSocket(url);
+    ws.onopen = () => {
+      wsReady = true;
+      reconnectAttempts = 0;
+      isReconnecting = false;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      connEl.textContent = "已連線";
+      connEl.className = "conn-status online";
+      // Only refresh room list on reconnect if user was already viewing it.
+      if (isReconnecting && state.currentView === "joinList") sendMsg("listRooms");
+    };
+    ws.onclose = () => {
+      wsReady = false;
+      scheduleReconnect();
+    };
+    ws.onerror = () => {
+      try { ws.close(); } catch (e) {}
+    };
+    ws.onmessage = ev => {
+      let msg;
+      try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+      handleServerMessage(msg);
+    };
+  }
+
+  function scheduleReconnect(){
+    if (reconnectTimer) return;
+    reconnectAttempts += 1;
+    isReconnecting = true;
+    const waitMs = Math.min(10000, 800 * Math.pow(1.6, reconnectAttempts - 1));
+    const seconds = Math.max(1, Math.round(waitMs / 1000));
+    connEl.textContent = `連線中斷，${seconds} 秒後自動重連`;
+    connEl.className = "conn-status offline";
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      if (isReconnecting) {
+        connect();
+      }
+    }, waitMs);
+  }
+
+  function sendMsg(type, payload){
+    if(!wsReady) return;
+    ws.send(JSON.stringify({ type, ...(payload || {}) }));
+  }
+
+  function handleServerMessage(msg){
+    if (msg.serverNow) state.serverClockOffset = Date.now() - msg.serverNow;
+    if (msg.roundEndsAt) msg.roundEndsAt += state.serverClockOffset;
+    if (msg.thinkEndsAt) msg.thinkEndsAt += state.serverClockOffset;
+    switch(msg.type){
+      case "roomList": screenJoinList(msg.rooms); break;
+      case "roomJoined":
+        state.room = msg.room;
+        state.yourId = msg.yourId;
+        state.isHost = state.room.hostId === state.yourId;
+        state.pendingReplay = false;
+        screenRoomLobby();
+        break;
+      case "roomUpdate":
+        state.room = msg.room;
+        state.isHost = state.room.hostId === state.yourId;
+        if(state.room.status === "lobby" && (state.currentView === "roomLobby" || state.pendingReplay)) {
+          state.pendingReplay = false;
+          screenRoomLobby();
+        }
+        break;
+      case "error":
+        showError(msg.message);
+        break;
+      case "phaseChange":
+        if(msg.phase === "confirm") screenRoleConfirm(msg.durationMs || 12000);
+        break;
+      case "roleAssigned":
+        state.myRole = msg.role;
+        state.myDice = msg.dice;
+        break;
+      case "readyProgress":
+        state.readyCount = msg.readyCount;
+        updateReadyProgress(msg.readyCount, msg.total);
+        break;
+      case "nightRound":
+        playCue("round");
+        state.currentRoundEndsAt = msg.roundEndsAt || (Date.now() + (msg.durationMs || 12000));
+        screenNight(msg.round, msg.durationMs || 12000, state.currentRoundEndsAt);
+        break;
+      case "nightAction":
+        if (msg.roundEndsAt) state.currentRoundEndsAt = msg.roundEndsAt;
+        handleNightAction(msg);
+        break;
+      case "peekResult":
+        showPeekResult(msg);
+        break;
+      case "chooseAccomplicePrompt":
+        showChooseAccomplice(msg);
+        break;
+      case "assignAccomplicePrompt":
+        showAssignAccomplice(msg.required, msg.candidates, msg.timeoutMs || 12000, msg.roundEndsAt || state.currentRoundEndsAt);
+        break;
+      case "accompliceSelecting":
+        showAccompliceSelecting(msg);
+        break;
+      case "accompliceReveal":
+        showAccompliceReveal(msg.thiefName, msg.partners, msg.actualRole);
+        break;
+      case "dayStart":
+        state.hasVoted = false;
+        screenDayThink(msg.thinkEndsAt, msg.durationMs || 20000);
+        break;
+      case "speakingOrder":
+        state.speakingOrder = Array.isArray(msg.order) ? msg.order : [];
+        screenSpeakingOrder(msg.order);
+        break;
+      case "dayVoteStart":
+        screenDayVote();
+        break;
+      case "voteProgress":
+        updateVoteProgress(msg.votedCount, msg.total);
+        break;
+      case "gameOver":
+        screenGameOver(msg);
+        break;
+    }
+  }
+
+  let lastErrorTarget = null;
+  function showError(message){
+    if(lastErrorTarget && document.getElementById(lastErrorTarget)){
+      document.getElementById(lastErrorTarget).textContent = message;
+    }
+  }
+
+  // ---------- Screen: Home ----------
+  function screenHome(){
+    clearUiTimers();
+    setView("home");
+    render(`
+      <button class="btn secondary corner-btn top-left" id="rolesBtn">👤 角色介紹</button>
+      <button class="btn secondary corner-btn top-right" id="rulesBtn">📖 規則介紹</button>
+      <div class="screen">
+        <h1>🧀 奶酪大盜</h1>
+        <div class="subtitle">Cheese Thief — 連線多人版</div>
+        <p>請輸入你的暱稱（必填）</p>
+        <div><input type="text" id="nameInput" maxlength="20" placeholder="你的暱稱" value="${escapeHtml(state.playerName)}"></div>
+        <div class="error-text" id="homeError"></div>
+        <div class="home-buttons">
+          <button class="btn" id="createBtn">🎲 創建遊戲</button>
+          <button class="btn secondary" id="joinBtn">🚪 加入遊戲</button>
+        </div>
+      </div>
+    `);
+    lastErrorTarget = "homeError";
+    const nameInput = document.getElementById("nameInput");
+    const readName = () => {
+      const name = nameInput.value.trim().slice(0, 20);
+      if(!name){
+        document.getElementById("homeError").textContent = "請先輸入暱稱";
+        return null;
+      }
+      state.playerName = name;
+      localStorage.setItem("playerName", name);
+      return name;
+    };
+    document.getElementById("createBtn").onclick = () => { if(readName()) screenCreateRoom(); };
+    document.getElementById("joinBtn").onclick = () => { if(readName()) sendMsg("listRooms"); };
+    document.getElementById("rulesBtn").onclick = screenRules;
+    document.getElementById("rolesBtn").onclick = screenRoleIntro;
+  }
+
+  // ---------- Screen: Role Introduction ----------
+  function screenRoleIntro(){
+    clearUiTimers();
+    setView("roleIntro");
+    render(`
+      <div class="screen" style="max-width:720px;">
+        <h2>👤 角色介紹</h2>
+        <div class="role-intro-grid">
+          <div class="role-intro-card">
+            <img src="picture/奶酪大盜.png" alt="奶酪大盜">
+            <h3 style="color:var(--accent-2);">奶酪大盜</h3>
+            <p>有一個玩家會擔任奶酪大盜，要在遊戲中偷走奶酪小物。</p>
+          </div>
+          <div class="role-intro-card">
+            <img src="picture/貪睡鼠.png" alt="貪睡鼠">
+            <h3 style="color:#7dd3fc;">貪睡鼠</h3>
+            <p>其他玩家會擔任貪睡鼠，沒有能力，只能用推理的去找出誰是奶酪大盜。</p>
+          </div>
+          <div class="role-intro-card">
+            <img src="picture/背鍋鼠.png" alt="背鍋鼠">
+            <h3 style="color:#c084fc;">背鍋鼠</h3>
+            <p>特殊角色，只適用於 6-8 人遊戲，建議玩過基本版再加入這個角色。沒有特殊能力，但勝利目標是成為票選最高票。不論在各種情況下，背鍋鼠只要獲得最高票，就獨自勝利。</p>
+          </div>
+        </div>
+        <div style="text-align:center; margin-top:16px;">
+          <button class="btn secondary" id="backHomeBtn">返回首頁</button>
+        </div>
+      </div>
+    `);
+    document.getElementById("backHomeBtn").onclick = screenHome;
+  }
+
+  // ---------- Screen: Rules ----------
+  function screenRules(){
+    clearUiTimers();
+    setView("rules");
+    render(`
+      <div class="screen" style="text-align:left; max-width:720px;">
+        <h2 style="text-align:center;">📖 遊戲規則介紹</h2>
+        <p><strong>遊戲流程</strong><br>
+        抽取角色卡 → 確認角色 → 黑夜 → 白天 → 投票 → 公布勝負結果。</p>
+        <p><strong>基本角色</strong><br>
+        牌組只有兩種身分：1 張奶酪大盜、其餘皆為貪睡鼠。<strong>共犯其實就是貪睡鼠變成的</strong>，會在黑夜中依人數規則產生。</p>
+        <p><strong>各人數設置</strong><br>
+        5 人局：1 大盜 + 4 貪睡鼠 + 0~1 位共犯（依黑夜巧合產生）。<br>
+        6 人局：1 大盜 + 4 貪睡鼠 + 1 位共犯（大盜第 6 回合後指定）。<br>
+        7 人局：1 大盜 + 4 貪睡鼠 + 2 位共犯（大盜第 6 回合後指定，共犯間相認但不知道大盜是誰）。<br>
+        8 人局：1 大盜 + 5 貪睡鼠 + 2 位共犯（大盜第 6 回合後指定，大盜與共犯彼此相認）。</p>
+        <p><strong>黑夜階段</strong><br>
+        系統依序公告 1 到 6 點，骰子點數相同的玩家會私下收到提示：<br>
+        • 若你是貪睡鼠且<strong>只有你一人</strong>睜眼：可以查看任意一位其他玩家的骰子點數。<br>
+        • 若你是貪睡鼠且<strong>有其他貪睡鼠一起</strong>睜眼：只能互相確認彼此是好人，<strong>不能</strong>偷看骰子。<br>
+        • 若你是<strong>奶酪大盜</strong>：不論是否有人同時睜眼，都必須默默拿走奶酪。<br>
+        （5 人局：若有貪睡鼠與大盜同時睜眼，該玩家自動成為共犯；若有 2 位以上，大盜指定其中一位；若無貪睡鼠與大盜同時睜眼，則該場無共犯。）</p>
+        <p><strong>白天討論與投票</strong><br>
+        黑夜結束後玩家自由討論，時間到後每人各自投票給懷疑的對象（不可投給自己）。</p>
+        <p><strong>勝負判定</strong><br>
+        若最高票不只一人，所有平票玩家都要翻開身分卡。翻開的身分卡中<strong>只要出現奶酪大盜</strong>，貪睡鼠陣營獲勝；<strong>完全沒有奶酪大盜</strong>，則大盜與其共犯獲勝。</p>
+        <p><strong>進階玩法</strong></p>
+        <p><strong>🐭 背鍋鼠規則</strong><br>
+        只適用於 6~8 人遊戲，將一張貪睡鼠牌用背鍋鼠牌取代。背鍋鼠的遊戲規則和貪睡鼠一樣，只有勝利條件不同。不論在各種情況下，背鍋鼠只要獲得最高票，就獨自勝利。</p>
+        <div style="text-align:center; margin-top:16px;">
+          <button class="btn secondary" id="backHomeBtn">返回首頁</button>
+        </div>
+      </div>
+    `);
+    document.getElementById("backHomeBtn").onclick = screenHome;
+  }
+
+  // ---------- Screen: Create Room ----------
+  function screenCreateRoom(){
+    clearUiTimers();
+    setView("createRoom");
+    let isPublic = true;
+    let gameMode = "normal";
+    render(`
+      <div class="screen">
+        <h2>🎲 創建遊戲</h2>
+        <p>房間類型</p>
+        <div class="toggle-group">
+          <button type="button" id="publicBtn" class="active">公開房間</button>
+          <button type="button" id="privateBtn">非公開房間</button>
+        </div>
+        <div id="passwordArea" class="hidden">
+          <input type="password" id="roomPasswordInput" placeholder="設定房間密碼" maxlength="40">
+        </div>
+        <p style="margin-top:14px;">遊戲模式</p>
+        <div class="toggle-group">
+          <button type="button" id="normalModeBtn" class="active">一般</button>
+          <button type="button" id="advancedModeBtn">進階（含背鍋鼠）</button>
+        </div>
+        <div class="error-text" id="createError"></div>
+        <div>
+          <button class="btn" id="confirmCreateBtn">確認建立</button>
+          <button class="btn secondary" id="backHomeBtn">返回</button>
+        </div>
+      </div>
+    `);
+    lastErrorTarget = "createError";
+
+    const publicBtn = document.getElementById("publicBtn");
+    const privateBtn = document.getElementById("privateBtn");
+    const passwordArea = document.getElementById("passwordArea");
+    const normalModeBtn = document.getElementById("normalModeBtn");
+    const advancedModeBtn = document.getElementById("advancedModeBtn");
+
+    publicBtn.onclick = () => {
+      isPublic = true;
+      publicBtn.classList.add("active");
+      privateBtn.classList.remove("active");
+      passwordArea.classList.add("hidden");
+    };
+    privateBtn.onclick = () => {
+      isPublic = false;
+      privateBtn.classList.add("active");
+      publicBtn.classList.remove("active");
+      passwordArea.classList.remove("hidden");
+    };
+    normalModeBtn.onclick = () => {
+      gameMode = "normal";
+      normalModeBtn.classList.add("active");
+      advancedModeBtn.classList.remove("active");
+    };
+    advancedModeBtn.onclick = () => {
+      gameMode = "advanced";
+      advancedModeBtn.classList.add("active");
+      normalModeBtn.classList.remove("active");
+    };
+
+    document.getElementById("backHomeBtn").onclick = screenHome;
+
+    document.getElementById("confirmCreateBtn").onclick = () => {
+      let password = "";
+      if(!isPublic){
+        password = document.getElementById("roomPasswordInput").value.trim();
+        if(!password){
+          document.getElementById("createError").textContent = "非公開房間請設定密碼";
+          return;
+        }
+      }
+      sendMsg("createRoom", { playerName: state.playerName, isPublic, password, mode: gameMode });
+    };
+  }
+
+  // ---------- Screen: Join List ----------
+  function screenJoinList(rooms){
+    clearUiTimers();
+    setView("joinList");
+    render(`
+      <div class="screen">
+        <h2>🚪 加入遊戲</h2>
+        <p>請從房間列表中選擇想加入的房間，或直接輸入房號</p>
+        <div>
+          <input type="text" id="directCodeInput" placeholder="輸入房號" maxlength="3">
+          <button class="btn secondary" id="findBtn">尋找房號</button>
+        </div>
+        <div class="room-list" id="roomList">
+          ${(!rooms || rooms.length === 0)
+            ? `<div class="empty-hint">目前沒有已建立的房間，可請房主提供房號直接加入。</div>`
+            : rooms.map(r => `
+              <div class="room-card" data-code="${r.code}" data-public="${r.isPublic ? "1" : "0"}">
+                <div>
+                  <span class="room-code-small">#${padCode(r.code)}</span>
+                  <div class="room-tag">${r.isPublic ? "🌐 公開" : "🔒 非公開"}　${r.currentPlayers}/${r.maxPlayers} 人</div>
+                </div>
+                <span>➡️</span>
+              </div>
+            `).join("")}
+        </div>
+        <div id="joinPasswordArea"></div>
+        <div class="error-text" id="joinListError"></div>
+        <div>
+          <button class="btn secondary" id="refreshBtn">重新整理</button>
+          <button class="btn secondary" id="backHomeBtn">返回大廳</button>
+        </div>
+      </div>
+    `);
+    lastErrorTarget = "joinListError";
+
+    document.getElementById("refreshBtn").onclick = () => sendMsg("listRooms");
+    document.getElementById("backHomeBtn").onclick = screenHome;
+    document.getElementById("findBtn").onclick = () => {
+      const code = parseInt(document.getElementById("directCodeInput").value, 10);
+      if(isNaN(code) || code < 1 || code > 999){
+        document.getElementById("joinListError").textContent = "請輸入 1-999 的房號";
+        return;
+      }
+      promptJoinPassword(code);
+    };
+
+    document.querySelectorAll(".room-card").forEach(card => {
+      card.onclick = () => {
+        const code = parseInt(card.dataset.code, 10);
+        const isPublic = card.dataset.public === "1";
+        promptJoinPassword(code, isPublic);
+      };
+    });
+  }
+
+  function promptJoinPassword(code, isPublic){
+    const area = document.getElementById("joinPasswordArea");
+    area.innerHTML = isPublic
+      ? `<div><button class="btn" id="doJoinBtn">加入房間 #${padCode(code)}</button></div>`
+      : `
+        <p>房間 #${padCode(code)} 需要密碼（若為公開房間可留空）</p>
+        <input type="password" id="joinPasswordInput" placeholder="房間密碼（如有）">
+        <div><button class="btn" id="doJoinBtn">加入房間</button></div>
+      `;
+    document.getElementById("doJoinBtn").onclick = () => {
+      const pwInput = document.getElementById("joinPasswordInput");
+      const password = pwInput ? pwInput.value : "";
+      sendMsg("joinRoom", { code, password, playerName: state.playerName });
+    };
+  }
+
+  // ---------- Screen: Room Lobby ----------
+  function screenRoomLobby(){
+    clearUiTimers();
+    setView("roomLobby");
+    const room = state.room;
+    const count = room.players.length;
+    const canStart = count >= room.minPlayers && count <= room.maxPlayers;
+    render(`
+      <div class="screen">
+        <h2>房間大廳</h2>
+        <div class="room-code">#${padCode(room.code)}</div>
+        <p>${room.isPublic ? "🌐 公開房間" : "🔒 非公開房間"}${room.mode === "advanced" ? " ｜ 🐭 進階模式" : ""}　｜　${count}/${room.maxPlayers} 人（最少 ${room.minPlayers} 人可開始）</p>
+        <div class="player-list">
+          ${room.players.map(p => `
+            <div class="player-chip">
+              <span>${escapeHtml(p.name)}${p.id === state.yourId ? "（你）" : ""}</span>
+              <span class="tag">${p.id === room.hostId ? "👑 房主" : (p.connected ? "已連線" : "已離線")}</span>
+            </div>
+          `).join("")}
+        </div>
+        <div class="error-text" id="lobbyError"></div>
+        ${state.isHost
+          ? `<button class="btn" id="startGameBtn" ${canStart ? "" : "disabled"}>開始遊戲${canStart ? "" : `（至少需 ${room.minPlayers} 人）`}</button>`
+          : `<p>等待房主開始遊戲...</p>`}
+        <div><button class="btn secondary" id="leaveBtn">離開房間</button></div>
+      </div>
+    `);
+    lastErrorTarget = "lobbyError";
+    const startBtn = document.getElementById("startGameBtn");
+    if(startBtn) startBtn.onclick = () => {
+      primeVoiceAudio();
+      sendMsg("startGame");
+    };
+    document.getElementById("leaveBtn").onclick = () => {
+      sendMsg("leaveRoom");
+      state.room = null;
+      screenHome();
+    };
+  }
+
+  // ---------- Screen: Role confirm ----------
+  function screenRoleConfirm(durationMs){
+    clearUiTimers();
+    setView("roleConfirm");
+    playCue("confirm");
+    const roleClass = state.myRole === ROLE.THIEF ? "thief" : state.myRole === "背鍋鼠" ? "accomplice" : "mouse";
+    const img = ROLE_IMAGE[state.myRole] || ROLE_IMAGE.SCAPEGOAT;
+    render(`
+      <div class="screen">
+        <h2>👀 你的身分</h2>
+        <p>請確認自己的角色與骰子點數，請勿讓其他人看到</p>
+        <div class="reveal-box">
+          ${img ? `<img class="role-card-img" src="${img}" alt="${state.myRole}">` : ""}
+          <div class="role-name ${roleClass}">${state.myRole}</div>
+          <div class="dice">🎲 骰子點數：${state.myDice}</div>
+          <p style="color:var(--text-dim); margin:6px 0 0;">${state.myRole === ROLE.THIEF ? "（大盜會依你的骰子點數，在 1 到 6 的其中一回合睜眼）" : state.myRole === "背鍋鼠" ? "（背鍋鼠！獲得最高票即獨自勝利，請記住你的骰子點數）" : "請記住你的睜眼回合數"}</p>
+        </div>
+        <p id="readyProgressText">剩餘 12 秒，時間到會自動進入黑夜</p>
+      </div>
+    `);
+    const endAt = Date.now() + durationMs;
+    const maskRoleCard = () => {
+      const box = document.querySelector("#app .reveal-box");
+      if (box) box.innerHTML = `<p>已確認，請將裝置放下並等待黑夜開始。</p>`;
+    };
+    const updateCountdown = () => {
+      const remainMs = Math.max(0, endAt - Date.now());
+      const remainSec = Math.min(12, Math.ceil(remainMs / 1000));
+      const el = document.getElementById("readyProgressText");
+      if (el) el.textContent = remainSec > 0 ? `剩餘 ${remainSec} 秒，時間到會自動進入黑夜` : "即將進入黑夜...";
+      if (remainMs <= 0) {
+        maskRoleCard();
+        clearUiTimers();
+      }
+    };
+    uiInterval = setInterval(updateCountdown, 250);
+    uiTimer = setTimeout(() => {
+      maskRoleCard();
+      clearUiTimers();
+    }, durationMs);
+    updateCountdown();
+    speak("遊戲準備開始，請確認自己的角色與骰子點數");
+    scheduleCountdown(Date.now() + durationMs);
+  }
+
+  function updateReadyProgress(readyCount, total){
+    const el = document.getElementById("readyProgressText");
+    if(el) el.textContent = `已準備：${readyCount}/${total}`;
+  }
+
+  // ---------- Screen: Night ----------
+  function screenNight(round, durationMs, roundEndsAt){
+    clearUiTimers();
+    setView("night");
+    state.currentNightRound = round;
+    render(`
+      <div class="screen night-screen">
+        <div class="moon">🌙</div>
+        <h2>黑夜降臨...</h2>
+        <div class="round-counter">第 ${round} 回合 ${roundFace(round)}</div>
+        ${renderCountdownBox("nightCountdownText", "nightCountdownBar", "剩餘 12 秒")}
+      </div>
+    `);
+    const nightEndAt = resolveRoundEndsAt(roundEndsAt, durationMs || 12000);
+    startCountdownTo(nightEndAt, durationMs || 12000, "nightCountdownText", "nightCountdownBar", "本回合結束");
+    speak(`現在${round}點了，請骰到${round}點的玩家行動`);
+    scheduleCountdown(nightEndAt);
+  }
+
+  function renderCheeseStatus(cheeseTaken){
+    if (cheeseTaken) {
+      return `
+        <div class="cheese-status-card missing">
+          <div class="cheese-status-emoji">🧀❌</div>
+          <div>奶酪已經不見了</div>
+        </div>
+      `;
+    }
+    return `
+      <div class="cheese-status-card">
+        <div class="cheese-status-emoji">🧀</div>
+        <div>奶酪還在！</div>
+      </div>
+    `;
+  }
+
+  function renderCoWakeLines(names){
+    if (!names || names.length === 0) return `<p>這回合只有你睜眼。</p>`;
+    return `<p>這回合你與 ${names.map(escapeHtml).join("、")} 同時睜眼</p><p>這回合總共${names.length + 1}個人睜眼</p>`;
+  }
+
+  function roundFace(round){
+    const faces = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+    const idx = Math.max(1, Math.min(6, Number(round || 1))) - 1;
+    return faces[idx];
+  }
+
+  function renderCountdownBox(textId, barId, initialText){
+    return `
+      <div class="countdown-box">
+        <div class="countdown-track"><div class="countdown-fill" id="${barId}"></div></div>
+        <div class="countdown-text" id="${textId}">${initialText}</div>
+      </div>
+    `;
+  }
+
+  function resolveRoundEndsAt(roundEndsAt, fallbackMs){
+    return roundEndsAt || state.currentRoundEndsAt || (Date.now() + (fallbackMs || 12000));
+  }
+
+  function startCountdownTo(endAt, totalMs, textId, barId, finalText){
+    clearUiTimers();
+    const total = Math.max(1, endAt - Date.now());
+    const update = () => {
+      const remainMs = Math.max(0, endAt - Date.now());
+      const remainSec = Math.min(20, Math.ceil(remainMs / 1000));
+      const textEl = document.getElementById(textId);
+      const barEl = document.getElementById(barId);
+      if (textEl) textEl.textContent = remainMs > 0 ? `剩餘 ${remainSec} 秒` : finalText;
+      if (barEl) barEl.style.transform = `scaleX(${Math.max(0, Math.min(1, remainMs / total))})`;
+    };
+    uiInterval = setInterval(update, 100);
+    uiTimer = setTimeout(() => {
+      update();
+      clearUiTimers();
+    }, Math.max(0, endAt - Date.now()));
+    update();
+  }
+
+  function screenDayThink(thinkEndsAt, durationMs){
+    clearUiTimers();
+    renderSpeakingOrderBar();
+    setView("dayThink");
+    render(`
+      <div class="screen">
+        <div class="day-banner">☀️ 奶酪已被偷走</div>
+        <h2>討論前思考時間</h2>
+        <p>請先安靜整理線索，20 秒後自動進入投票畫面。</p>
+        ${renderCountdownBox("dayThinkCountdown", "dayThinkCountdownBar", "剩餘 20 秒")}
+      </div>
+    `);
+    const thinkEndAt = thinkEndsAt || (Date.now() + (durationMs || 20000));
+    startCountdownTo(thinkEndAt, durationMs || 20000, "dayThinkCountdown", "dayThinkCountdownBar", "即將進入投票");
+    speak("最後20秒思考，時間結束後開始投票");
+    scheduleCountdown(thinkEndAt);
+  }
+
+  function screenSpeakingOrder(order){
+    clearUiTimers();
+    setSpeakingOrderBarVisible(false);
+    setView("speakingOrder");
+    const names = Array.isArray(order) ? order : [];
+    render(`
+      <div class="screen">
+        <div class="day-banner">☀️ 即將開始思考時間</div>
+        <h2>發言順序</h2>
+        <div class="reveal-box"><div class="role-name mouse">${names.map(escapeHtml).join(" → ")}</div></div>
+        <p>即將進入投票。</p>
+      </div>
+    `);
+  }
+
+  function setSpeakingOrderBarVisible(visible){
+    const bar = document.getElementById("speakingOrderBar");
+    if (!bar) return;
+    bar.classList.toggle("hidden", !visible);
+  }
+
+  function renderSpeakingOrderBar(){
+    const bar = document.getElementById("speakingOrderBar");
+    if (!bar) return;
+    bar.textContent = `發言順序：${state.speakingOrder.map(escapeHtml).join(" → ")}`;
+    setSpeakingOrderBarVisible(true);
+  }
+
+  function handleNightAction(msg){
+    clearUiTimers();
+    if(msg.action === "thiefRound"){
+      setView("nightAction");
+      const timeoutMs = msg.timeoutMs || 12000;
+      const revealDelayMs = msg.revealDelayMs || 3000;
+      const roundEndsAt = resolveRoundEndsAt(msg.roundEndsAt, timeoutMs);
+      render(`
+        <div class="screen night-screen">
+          <div class="moon">🌙</div>
+          <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
+          <p>${msg.isThief ? "你是奶酪大盜。" : "你和其他玩家同時睜眼。"}</p>
+          ${renderCoWakeLines(msg.companions)}
+          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 12 秒")}
+          <div id="thiefRoundStatus">
+            <p>正在行動中...</p>
+          </div>
+        </div>
+      `);
+      startCountdownTo(roundEndsAt, timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
+      scheduleCountdown(roundEndsAt);
+      setTimeout(() => {
+        const box = document.getElementById("thiefRoundStatus");
+        if (!box) return;
+        box.innerHTML = msg.isThief
+          ? `<div class="cheese-status-card missing theft-alert"><div class="cheese-status-emoji alert">🧀❌</div><div>奶酪已經不見了</div><div class="theft-text">奶酪被我偷走了</div></div>`
+          : `<div class="cheese-status-card missing theft-alert"><div class="cheese-status-emoji alert">🧀❌</div><div>奶酪已經不見了</div><div class="theft-text">奶酪被 ${escapeHtml(msg.thiefName)} 偷走了</div></div>`;
+      }, revealDelayMs);
+    } else if(msg.action === "mutual"){
+      setView("nightAction");
+      const timeoutMs = msg.timeoutMs || 12000;
+      const roundEndsAt = resolveRoundEndsAt(msg.roundEndsAt, timeoutMs);
+      render(`
+        <div class="screen night-screen">
+          <div class="moon">🌙</div>
+          <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
+          ${renderCheeseStatus(msg.cheeseTaken)}
+          <h2>🤝 互相確認</h2>
+          ${renderCoWakeLines(msg.names)}
+          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 12 秒")}
+        </div>
+      `);
+      startCountdownTo(roundEndsAt, timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
+      if (msg.names && msg.names.length) {
+        playVoiceFile("你與他同時睜眼.mp3");
+      } else {
+        speak("這回合你睜眼了");
+      }
+      scheduleCountdown(roundEndsAt);
+    } else if(msg.action === "peekPrompt"){
+      setView("nightAction");
+      const timeoutMs = msg.timeoutMs || 20000;
+      const roundEndsAt = resolveRoundEndsAt(msg.roundEndsAt, timeoutMs);
+      render(`
+        <div class="screen night-screen">
+          <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
+          ${renderCheeseStatus(msg.cheeseTaken)}
+          <h2>👁️ 你獨自睜眼</h2>
+          <p>可以查看一位玩家的骰子點數；12 秒內未選擇會自動略過：</p>
+          ${renderCountdownBox("peekCountdown", "peekCountdownBar", "剩餘 12 秒")}
+          <div class="vote-grid">
+            ${msg.targets.map(t => `<button class="btn secondary" data-target="${t.id}">${escapeHtml(t.name)}</button>`).join("")}
+          </div>
+        </div>
+      `);
+      startCountdownTo(roundEndsAt, timeoutMs, "peekCountdown", "peekCountdownBar", "即將略過...");
+      speak("這回合只有你睜眼，請查看一位玩家的點數");
+      scheduleCountdown(roundEndsAt);
+      document.querySelectorAll("#app .vote-grid button").forEach(btn => {
+        btn.onclick = () => {
+          primeVoiceAudio();
+          clearUiTimers();
+          sendMsg("peekChoose", { targetId: parseInt(btn.dataset.target, 10) });
+          document.querySelectorAll("#app .vote-grid button").forEach(b => b.disabled = true);
+        };
+      });
+    }
+  }
+
+  function showPeekResult(msg){
+    clearUiTimers();
+    setView("nightAction");
+    const roundEndsAt = resolveRoundEndsAt(msg.roundEndsAt, 12000);
+    render(`
+      <div class="screen night-screen">
+        <div class="reveal-box">
+          <p>${escapeHtml(msg.targetName)} 的骰子點數是：</p>
+          <div class="dice">🎲 ${msg.dice}</div>
+        </div>
+        ${renderCountdownBox("peekResultCountdown", "peekResultCountdownBar", "剩餘時間")}
+      </div>
+    `);
+    startCountdownTo(roundEndsAt, 12000, "peekResultCountdown", "peekResultCountdownBar", "本回合結束");
+    scheduleCountdown(roundEndsAt);
+    playDiceResultVoice(msg.dice);
+  }
+
+  function showChooseAccomplice(msg){
+    clearUiTimers();
+    setView("nightAction");
+    const revealDelayMs = msg.revealDelayMs || 3000;
+    const timeoutMs = msg.timeoutMs || 12000;
+    const roundEndsAt = resolveRoundEndsAt(msg.roundEndsAt, timeoutMs);
+    render(`
+      <div class="screen night-screen">
+        <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
+        ${renderCoWakeLines(msg.companions)}
+        ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘 12 秒")}
+        <div id="chooseAccompliceIntro">
+          <p>正在行動中...</p>
+        </div>
+      </div>
+    `);
+    startCountdownTo(roundEndsAt, timeoutMs, "chooseCountdown", "chooseCountdownBar", "本回合結束");
+    setTimeout(() => {
+      render(`
+        <div class="screen night-screen">
+          <h2>🧀 第 ${msg.round} 回合 ${roundFace(msg.round)} 指定共犯</h2>
+          <p>奶酪已被 ${escapeHtml((msg.thiefName || "奶酪大盜"))} 偷走。</p>
+          ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘時間")}
+          ${renderCoWakeLines(msg.companions)}
+          <p>有多位貪睡鼠與你同時睜眼，請指定其中一位成為你的共犯：</p>
+          <div class="vote-grid">
+            ${msg.candidates.map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
+          </div>
+        </div>
+      `);
+      startCountdownTo(roundEndsAt, timeoutMs, "chooseCountdown", "chooseCountdownBar", "本回合結束");
+      speak("請奶酪大盜選擇你的共犯");
+      scheduleCountdown(roundEndsAt);
+      document.querySelectorAll("#app .vote-grid button").forEach(btn => {
+        btn.onclick = () => {
+          clearUiTimers();
+          const chosenName = btn.textContent.trim();
+          sendMsg("chooseAccomplice", { targetId: parseInt(btn.dataset.target, 10) });
+          render(`<div class="screen night-screen"><h2>\u2705 \u4f60\u5df2\u9078\u64c7 ${escapeHtml(chosenName)} \u505a\u70ba\u4f60\u7684\u5171\u72af</h2><p>\u7b49\u5f85\u9032\u5165\u767d\u5929...</p></div>`);
+          speak(`\u4f60\u5df2\u9078\u64c7${chosenName}\u505a\u70ba\u4f60\u7684\u5171\u72af`);
+        };
+      });
+    }, revealDelayMs);
+  }
+
+  function showAssignAccomplice(required, candidates, timeoutMs, roundEndsAt){
+    let chosen = [];
+    clearUiTimers();
+    setView("nightAction");
+    const endAt = resolveRoundEndsAt(roundEndsAt, timeoutMs || 12000);
+    let assignSpeechDone = false;
+    function renderAssign(){
+      render(`
+        <div class="screen night-screen">
+          <h2>🧀 第 ${state.currentNightRound} 回合 ${roundFace(state.currentNightRound)} 指定共犯</h2>
+          <p>請秘密指定 ${required} 名共犯（已選 ${chosen.length}/${required}）：</p>
+          ${renderCountdownBox("assignCountdown", "assignCountdownBar", "剩餘 12 秒")}
+          <div class="vote-grid">
+            ${candidates.filter(c => !chosen.includes(c.id)).map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
+          </div>
+        </div>
+      `);
+      document.querySelectorAll("#app .vote-grid button").forEach(btn => {
+        btn.onclick = () => {
+          chosen.push(parseInt(btn.dataset.target, 10));
+          if(chosen.length >= required){
+            clearUiTimers();
+            sendMsg("assignAccomplice", { targetIds: chosen });
+            const chosenNames = chosen.map(id => (candidates.find(c => c.id === id) || {}).name).filter(Boolean);
+            const nameStr = chosenNames.join("、");
+            render(`<div class="screen night-screen"><h2>✅ 你已選擇 ${chosenNames.map(escapeHtml).join("、")} 做為你的共犯</h2><p>等待進入白天...</p></div>`);
+            speak(`你已選擇${nameStr}做為你的共犯`);
+          } else {
+            renderAssign();
+          }
+        };
+      });
+      startCountdownTo(endAt, timeoutMs || 12000, "assignCountdown", "assignCountdownBar", "指定時間結束");
+      if (!assignSpeechDone) {
+        assignSpeechDone = true;
+        speak("請奶酪大盜選擇你的共犯");
+      }
+      scheduleCountdown(endAt);
+    }
+    renderAssign();
+  }
+
+  function showAccompliceSelecting(msg){
+    clearUiTimers();
+    setView("nightAction");
+    const endAt = resolveRoundEndsAt(msg.roundEndsAt, msg.timeoutMs || 12000);
+    render(`
+      <div class="screen night-screen">
+        <div class="moon">🌙</div>
+        <h2>🔍 大盜正在選擇共犯中</h2>
+        <p>請等待...</p>
+        ${renderCountdownBox("selectingCountdown", "selectingBar", "等待中")}
+      </div>
+    `);
+    startCountdownTo(endAt, msg.timeoutMs || 12000, "selectingCountdown", "selectingBar", "即將進入白天");
+    scheduleCountdown(endAt);
+    speak("大盜正在選擇共犯中");
+  }
+
+  function showAccompliceReveal(thiefName, partners, actualRole){
+    clearUiTimers();
+    setView("nightAction");
+    render(`
+      <div class="screen night-screen">
+        <h2>🎉 你被大盜選擇做為共犯！</h2>
+        <div class="reveal-box">
+          <div class="role-name accomplice">你是共犯</div>
+          ${thiefName ? `<p>大盜是：${escapeHtml(thiefName)}</p>` : `<p>你不知道誰是大盜</p>`}
+          ${partners && partners.length ? `<p>你的共犯夥伴：${partners.map(escapeHtml).join("、")}</p>` : ""}
+        </div>
+        <p>等待進入白天...</p>
+      </div>
+    `);
+    speak("你被大盜選擇做為共犯");
+  }
+
+  // ---------- Screen: Day & Vote ----------
+  function screenDayVote(){
+    clearUiTimers();
+    renderSpeakingOrderBar();
+    setView("dayVote");
+    speak("請大家開始投票");
+    const room = state.room;
+    const stolenMsg = "黑夜結束！奶酪不見了！";
+    render(`
+      <div class="screen">
+        <div class="day-banner">☀️ ${stolenMsg}</div>
+        <p>請所有玩家開始自由討論（建議自行計時），討論結束後進行投票。</p>
+        <h2>請投出你懷疑的對象</h2>
+        <div class="vote-status" id="voteStatus">投票進度：0/${room.players.length}</div>
+        <div class="vote-grid" id="voteGrid">
+          ${room.players.map(p => `
+            <button class="btn ${p.id === state.yourId ? 'secondary' : ''}" data-target="${p.id}" ${p.id === state.yourId ? 'disabled title="不能投給自己"' : ''}>
+              ${escapeHtml(p.name)}
+            </button>
+          `).join("")}
+        </div>
+        <p id="votedHint" class="hidden">你已投票，請等待其他玩家。</p>
+      </div>
+    `);
+
+    document.querySelectorAll("#voteGrid button").forEach(btn => {
+      btn.onclick = () => {
+        if(state.hasVoted) return;
+        const targetId = parseInt(btn.dataset.target, 10);
+        state.hasVoted = true;
+        sendMsg("vote", { targetId });
+        document.querySelectorAll("#voteGrid button").forEach(b => b.disabled = true);
+        document.getElementById("votedHint").classList.remove("hidden");
+      };
+    });
+  }
+
+  function updateVoteProgress(votedCount, total){
+    const el = document.getElementById("voteStatus");
+    if(el) el.textContent = `投票進度：${votedCount}/${total}`;
+  }
+
+  // Volume control
+  (function(){
+    const volBtn = document.getElementById("volumeBtn");
+    const volPanel = document.getElementById("volumePanel");
+    const volSlider = document.getElementById("volumeSlider");
+    const bgmSlider = document.getElementById("bgmSlider");
+    volSlider.value = masterVolume;
+    bgmSlider.value = bgmVolume;
+    const updateIcon = () => {
+      const v = Math.max(masterVolume, bgmVolume);
+      volBtn.textContent = v === 0 ? "🔇" : v < 0.5 ? "🔉" : "🔊";
+    };
+    updateIcon();
+    volBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      volPanel.classList.toggle("hidden");
+    });
+    volPanel.addEventListener("click", e => e.stopPropagation());
+    volSlider.addEventListener("input", () => {
+      masterVolume = parseFloat(volSlider.value);
+      localStorage.setItem("masterVolume", masterVolume);
+      ensureAudio();
+      if (masterGainNode) masterGainNode.gain.value = masterVolume;
+      updateIcon();
+    });
+    bgmSlider.addEventListener("input", () => {
+      bgmVolume = parseFloat(bgmSlider.value);
+      localStorage.setItem("bgmVolume", bgmVolume);
+      const bgm = document.getElementById("bgm");
+      if (bgm) bgm.volume = bgmVolume;
+      updateIcon();
+    });
+    document.addEventListener("click", () => volPanel.classList.add("hidden"));
+  })();
+
+  // ---------- Screen: Game Over ----------
+  function screenGameOver(msg){
+    clearUiTimers();
+    setView("gameOver");
+    const scapegoatWin = !!msg.scapegoatWin;
+    speak(scapegoatWin ? "遊戲結束，恭喜背鍋鼠獨自獲得勝利" : msg.mouseWin ? "遊戲結束，恭喜貪睡鼠陣營獲得勝利" : "遊戲結束，恭喜大盜與共犯獲得勝利");
+    const bannerClass = scapegoatWin ? "scapegoat-win" : msg.mouseWin ? "mouse-win" : "thief-win";
+    const bannerText = scapegoatWin
+      ? "🐭 背鍋鼠獨自勝利！背鍋鼠獲得最高票！"
+      : msg.mouseWin
+      ? "🎉 貪睡鼠陣營獲勝！大盜被抓到了！"
+      : "🐀 大盜陣營獲勝！大盜與共犯成功逃脫！";
+
+    const roleOrder = { [ROLE.THIEF]: 0, "共犯": 1, [ROLE.MOUSE]: 2 };
+    const sorted = msg.players.slice().sort((a,b) => roleOrder[a.role] - roleOrder[b.role] || a.id - b.id);
+    const topNames = msg.topIds.map(id => (msg.players.find(p => p.id === id) || {}).name).map(escapeHtml).join("、");
+
+    render(`
+      <div class="screen">
+        <h1>遊戲結束</h1>
+        <div class="winner-banner ${bannerClass}">${bannerText}</div>
+        <p>翻開最高票玩家：${topNames}（${msg.tally[msg.topIds[0]]} 票）${msg.topIds.length > 1 ? " — 平票，全部翻開" : ""}</p>
+        <table class="result-table">
+          <thead><tr><th>玩家</th><th>角色</th><th>骰子點數</th><th>得票</th></tr></thead>
+          <tbody>
+            ${sorted.map(p => `
+              <tr>
+                <td>${escapeHtml(p.name)}</td>
+                <td>${p.role}</td>
+                <td>${p.dice}</td>
+                <td>${p.votes}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        <div class="log-box">${(msg.log || []).map(l => `<div>${escapeHtml(l)}</div>`).join("")}</div>
+        <div style="margin-top:20px;">
+          <button class="btn secondary small" id="replayBtn">再玩一次</button>
+          <button class="btn small" id="leaveBtn">離開</button>
+        </div>
+      </div>
+    `);
+    document.getElementById("replayBtn").onclick = () => {
+      state.pendingReplay = true;
+      sendMsg("restartRoom");
+      render(`<div class="screen"><p>正在返回房間...</p></div>`);
+      setView("replayWait");
+    };
+    document.getElementById("leaveBtn").onclick = () => {
+      sendMsg("leaveRoom");
+      state.room = null;
+      screenHome();
+    };
+  }
+
+  // Init
+  preloadGameAssets();
+  connect();
+  screenHome();
+})();
+</script>
+</body>
+</html>
