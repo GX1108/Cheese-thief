@@ -289,6 +289,7 @@
     joinCode: "",
     currentNightRound: 0,
     currentRoundEndsAt: 0,
+    speakingOrder: [],
     serverClockOffset: 0,
     currentView: "home",
     pendingReplay: false
@@ -704,7 +705,7 @@
         showError(msg.message);
         break;
       case "phaseChange":
-        if(msg.phase === "confirm") screenRoleConfirm(msg.durationMs || 20000);
+        if(msg.phase === "confirm") screenRoleConfirm(msg.durationMs || 12000);
         break;
       case "roleAssigned":
         state.myRole = msg.role;
@@ -716,8 +717,8 @@
         break;
       case "nightRound":
         playCue("round");
-        state.currentRoundEndsAt = msg.roundEndsAt || (Date.now() + (msg.durationMs || 20000));
-        screenNight(msg.round, msg.durationMs || 20000, state.currentRoundEndsAt);
+        state.currentRoundEndsAt = msg.roundEndsAt || (Date.now() + (msg.durationMs || 12000));
+        screenNight(msg.round, msg.durationMs || 12000, state.currentRoundEndsAt);
         break;
       case "nightAction":
         if (msg.roundEndsAt) state.currentRoundEndsAt = msg.roundEndsAt;
@@ -730,7 +731,7 @@
         showChooseAccomplice(msg);
         break;
       case "assignAccomplicePrompt":
-        showAssignAccomplice(msg.required, msg.candidates, msg.timeoutMs || 20000, msg.roundEndsAt || state.currentRoundEndsAt);
+        showAssignAccomplice(msg.required, msg.candidates, msg.timeoutMs || 12000, msg.roundEndsAt || state.currentRoundEndsAt);
         break;
       case "accompliceSelecting":
         showAccompliceSelecting(msg);
@@ -741,6 +742,10 @@
       case "dayStart":
         state.hasVoted = false;
         screenDayThink(msg.thinkEndsAt, msg.durationMs || 20000);
+        break;
+      case "speakingOrder":
+        state.speakingOrder = Array.isArray(msg.order) ? msg.order : [];
+        screenSpeakingOrder(msg.order);
         break;
       case "dayVoteStart":
         screenDayVote();
@@ -1070,7 +1075,7 @@
           <div class="dice">🎲 骰子點數：${state.myDice}</div>
           <p style="color:var(--text-dim); margin:6px 0 0;">${state.myRole === ROLE.THIEF ? "（大盜會依你的骰子點數，在 1 到 6 的其中一回合睜眼）" : state.myRole === "背鍋鼠" ? "（背鍋鼠！獲得最高票即獨自勝利，請記住你的骰子點數）" : "請記住你的睜眼回合數"}</p>
         </div>
-        <p id="readyProgressText">剩餘 20 秒，時間到會自動進入黑夜</p>
+        <p id="readyProgressText">剩餘 12 秒，時間到會自動進入黑夜</p>
       </div>
     `);
     const endAt = Date.now() + durationMs;
@@ -1080,7 +1085,7 @@
     };
     const updateCountdown = () => {
       const remainMs = Math.max(0, endAt - Date.now());
-      const remainSec = Math.min(20, Math.ceil(remainMs / 1000));
+      const remainSec = Math.min(12, Math.ceil(remainMs / 1000));
       const el = document.getElementById("readyProgressText");
       if (el) el.textContent = remainSec > 0 ? `剩餘 ${remainSec} 秒，時間到會自動進入黑夜` : "即將進入黑夜...";
       if (remainMs <= 0) {
@@ -1113,11 +1118,11 @@
         <div class="moon">🌙</div>
         <h2>黑夜降臨...</h2>
         <div class="round-counter">第 ${round} 回合 ${roundFace(round)}</div>
-        ${renderCountdownBox("nightCountdownText", "nightCountdownBar", "剩餘 20 秒")}
+        ${renderCountdownBox("nightCountdownText", "nightCountdownBar", "剩餘 12 秒")}
       </div>
     `);
-    const nightEndAt = resolveRoundEndsAt(roundEndsAt, durationMs || 20000);
-    startCountdownTo(nightEndAt, durationMs || 20000, "nightCountdownText", "nightCountdownBar", "本回合結束");
+    const nightEndAt = resolveRoundEndsAt(roundEndsAt, durationMs || 12000);
+    startCountdownTo(nightEndAt, durationMs || 12000, "nightCountdownText", "nightCountdownBar", "本回合結束");
     speak(`現在${round}點了，請骰到${round}點的玩家行動`);
     scheduleCountdown(nightEndAt);
   }
@@ -1141,7 +1146,7 @@
 
   function renderCoWakeLines(names){
     if (!names || names.length === 0) return `<p>這回合只有你睜眼。</p>`;
-    return names.map(name => `<p>${escapeHtml(name)} 這回合與你一起睜眼</p>`).join("");
+    return `<p>這回合你與 ${names.map(escapeHtml).join("、")} 同時睜眼</p><p>這回合總共${names.length + 1}個人睜眼</p>`;
   }
 
   function roundFace(round){
@@ -1160,7 +1165,7 @@
   }
 
   function resolveRoundEndsAt(roundEndsAt, fallbackMs){
-    return roundEndsAt || state.currentRoundEndsAt || (Date.now() + (fallbackMs || 20000));
+    return roundEndsAt || state.currentRoundEndsAt || (Date.now() + (fallbackMs || 12000));
   }
 
   function startCountdownTo(endAt, totalMs, textId, barId, finalText){
@@ -1199,12 +1204,27 @@
     scheduleCountdown(thinkEndAt);
   }
 
+  function screenSpeakingOrder(order){
+    clearUiTimers();
+    setView("speakingOrder");
+    const names = Array.isArray(order) ? order : [];
+    render(`
+      <div class="screen">
+        <div class="day-banner">☀️ 思考時間結束</div>
+        <h2>發言順序</h2>
+        <div class="reveal-box"><div class="role-name mouse">${names.map(escapeHtml).join(" → ")}</div></div>
+        <p>即將進入投票。</p>
+      </div>
+    `);
+    speak(`發言順序：${names.join("、")}`);
+  }
+
   function handleNightAction(msg){
     clearUiTimers();
     if(msg.action === "thiefRound"){
       setView("nightAction");
-      const timeoutMs = msg.timeoutMs || 20000;
-      const revealDelayMs = msg.revealDelayMs || 5000;
+      const timeoutMs = msg.timeoutMs || 12000;
+      const revealDelayMs = msg.revealDelayMs || 3000;
       const roundEndsAt = resolveRoundEndsAt(msg.roundEndsAt, timeoutMs);
       render(`
         <div class="screen night-screen">
@@ -1212,7 +1232,7 @@
           <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
           <p>${msg.isThief ? "你是奶酪大盜。" : "你和其他玩家同時睜眼。"}</p>
           ${renderCoWakeLines(msg.companions)}
-          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 20 秒")}
+          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 12 秒")}
           <div id="thiefRoundStatus">
             <p>正在行動中...</p>
           </div>
@@ -1229,7 +1249,7 @@
       }, revealDelayMs);
     } else if(msg.action === "mutual"){
       setView("nightAction");
-      const timeoutMs = msg.timeoutMs || 20000;
+      const timeoutMs = msg.timeoutMs || 12000;
       const roundEndsAt = resolveRoundEndsAt(msg.roundEndsAt, timeoutMs);
       render(`
         <div class="screen night-screen">
@@ -1238,7 +1258,7 @@
           ${renderCheeseStatus(msg.cheeseTaken)}
           <h2>🤝 互相確認</h2>
           ${renderCoWakeLines(msg.names)}
-          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 20 秒")}
+          ${renderCountdownBox("actionCountdownText", "actionCountdownBar", "剩餘 12 秒")}
         </div>
       `);
       startCountdownTo(roundEndsAt, timeoutMs, "actionCountdownText", "actionCountdownBar", "本回合結束");
@@ -1257,8 +1277,8 @@
           <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
           ${renderCheeseStatus(msg.cheeseTaken)}
           <h2>👁️ 你獨自睜眼</h2>
-          <p>可以查看一位玩家的骰子點數；20 秒內未選擇會自動略過：</p>
-          ${renderCountdownBox("peekCountdown", "peekCountdownBar", "剩餘 20 秒")}
+          <p>可以查看一位玩家的骰子點數；12 秒內未選擇會自動略過：</p>
+          ${renderCountdownBox("peekCountdown", "peekCountdownBar", "剩餘 12 秒")}
           <div class="vote-grid">
             ${msg.targets.map(t => `<button class="btn secondary" data-target="${t.id}">${escapeHtml(t.name)}</button>`).join("")}
           </div>
@@ -1281,7 +1301,7 @@
   function showPeekResult(msg){
     clearUiTimers();
     setView("nightAction");
-    const roundEndsAt = resolveRoundEndsAt(msg.roundEndsAt, 20000);
+    const roundEndsAt = resolveRoundEndsAt(msg.roundEndsAt, 12000);
     render(`
       <div class="screen night-screen">
         <div class="reveal-box">
@@ -1291,7 +1311,7 @@
         ${renderCountdownBox("peekResultCountdown", "peekResultCountdownBar", "剩餘時間")}
       </div>
     `);
-    startCountdownTo(roundEndsAt, 20000, "peekResultCountdown", "peekResultCountdownBar", "本回合結束");
+    startCountdownTo(roundEndsAt, 12000, "peekResultCountdown", "peekResultCountdownBar", "本回合結束");
     scheduleCountdown(roundEndsAt);
     playDiceResultVoice(msg.dice);
   }
@@ -1299,14 +1319,14 @@
   function showChooseAccomplice(msg){
     clearUiTimers();
     setView("nightAction");
-    const revealDelayMs = msg.revealDelayMs || 5000;
-    const timeoutMs = msg.timeoutMs || 20000;
+    const revealDelayMs = msg.revealDelayMs || 3000;
+    const timeoutMs = msg.timeoutMs || 12000;
     const roundEndsAt = resolveRoundEndsAt(msg.roundEndsAt, timeoutMs);
     render(`
       <div class="screen night-screen">
         <h2>第 ${msg.round} 回合 ${roundFace(msg.round)}，現在輪到你睜眼</h2>
         ${renderCoWakeLines(msg.companions)}
-        ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘 20 秒")}
+        ${renderCountdownBox("chooseCountdown", "chooseCountdownBar", "剩餘 12 秒")}
         <div id="chooseAccompliceIntro">
           <p>正在行動中...</p>
         </div>
@@ -1345,14 +1365,14 @@
     let chosen = [];
     clearUiTimers();
     setView("nightAction");
-    const endAt = resolveRoundEndsAt(roundEndsAt, timeoutMs || 20000);
+    const endAt = resolveRoundEndsAt(roundEndsAt, timeoutMs || 12000);
     let assignSpeechDone = false;
     function renderAssign(){
       render(`
         <div class="screen night-screen">
           <h2>🧀 第 ${state.currentNightRound} 回合 ${roundFace(state.currentNightRound)} 指定共犯</h2>
           <p>請秘密指定 ${required} 名共犯（已選 ${chosen.length}/${required}）：</p>
-          ${renderCountdownBox("assignCountdown", "assignCountdownBar", "剩餘 20 秒")}
+          ${renderCountdownBox("assignCountdown", "assignCountdownBar", "剩餘 12 秒")}
           <div class="vote-grid">
             ${candidates.filter(c => !chosen.includes(c.id)).map(c => `<button class="btn secondary" data-target="${c.id}">${escapeHtml(c.name)}</button>`).join("")}
           </div>
@@ -1373,7 +1393,7 @@
           }
         };
       });
-      startCountdownTo(endAt, timeoutMs || 20000, "assignCountdown", "assignCountdownBar", "指定時間結束");
+      startCountdownTo(endAt, timeoutMs || 12000, "assignCountdown", "assignCountdownBar", "指定時間結束");
       if (!assignSpeechDone) {
         assignSpeechDone = true;
         speak("請奶酪大盜選擇你的共犯");
@@ -1386,7 +1406,7 @@
   function showAccompliceSelecting(msg){
     clearUiTimers();
     setView("nightAction");
-    const endAt = resolveRoundEndsAt(msg.roundEndsAt, msg.timeoutMs || 20000);
+    const endAt = resolveRoundEndsAt(msg.roundEndsAt, msg.timeoutMs || 12000);
     render(`
       <div class="screen night-screen">
         <div class="moon">🌙</div>
@@ -1395,7 +1415,7 @@
         ${renderCountdownBox("selectingCountdown", "selectingBar", "等待中")}
       </div>
     `);
-    startCountdownTo(endAt, msg.timeoutMs || 20000, "selectingCountdown", "selectingBar", "即將進入白天");
+    startCountdownTo(endAt, msg.timeoutMs || 12000, "selectingCountdown", "selectingBar", "即將進入白天");
     scheduleCountdown(endAt);
     speak("大盜正在選擇共犯中");
   }
@@ -1426,6 +1446,9 @@
     const stolenMsg = "黑夜結束！奶酪不見了！";
     render(`
       <div class="screen">
+        <div style="text-align:center; margin-bottom:16px;">
+          <strong>發言順序：</strong>${state.speakingOrder.map(escapeHtml).join(" → ")}
+        </div>
         <div class="day-banner">☀️ ${stolenMsg}</div>
         <p>請所有玩家開始自由討論（建議自行計時），討論結束後進行投票。</p>
         <h2>請投出你懷疑的對象</h2>

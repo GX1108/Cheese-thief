@@ -9,11 +9,13 @@ const WebSocket = require("ws");
 const PORT = process.env.PORT || 8080;
 const MIN_PLAYERS = 5;
 const MAX_PLAYERS = 8;
-const CONFIRM_PHASE_MS = 20000;
-const NIGHT_ROUND_MS = 20000;
-const SOLO_PEEK_TIMEOUT_MS = 20000;
+const CONFIRM_PHASE_MS = 12000;
+const NIGHT_ROUND_MS = 12000;
+const SOLO_PEEK_TIMEOUT_MS = 12000;
+const THINK_PHASE_MS = 20000;
+const SPEAKING_ORDER_MS = 3000;
 const PHASE_TRANSITION_MS = 2500;
-const THIEF_REVEAL_MS = 5000;
+const THIEF_REVEAL_MS = 3000;
 
 const ROLE = {
   THIEF: "奶酪大盜",
@@ -381,14 +383,19 @@ function resolveAccompliceAssign(room, thiefId, targetIds) {
 
 function startDayPhase(room) {
   clearRoomTimer(room);
-  const thinkEndsAt = Date.now() + NIGHT_ROUND_MS;
+  const thinkEndsAt = Date.now() + THINK_PHASE_MS;
   room.status = "day-think";
-  broadcast(room, "dayStart", { durationMs: NIGHT_ROUND_MS, thinkEndsAt });
+  broadcast(room, "dayStart", { durationMs: THINK_PHASE_MS, thinkEndsAt });
   room.nightTimer = setTimeout(() => {
-    room.status = "day";
+    const speakingOrder = shuffle([...room.players.values()].map(player => player.name));
+    room.status = "day-speaking-order";
     room.votes = new Map();
-    broadcast(room, "dayVoteStart", { thinkEndsAt });
-  }, NIGHT_ROUND_MS);
+    broadcast(room, "speakingOrder", { order: speakingOrder });
+    room.nightTimer = setTimeout(() => {
+      room.status = "day";
+      broadcast(room, "dayVoteStart", { thinkEndsAt });
+    }, SPEAKING_ORDER_MS);
+  }, THINK_PHASE_MS);
 }
 
 function registerVote(room, voterId, targetId) {

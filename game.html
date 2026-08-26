@@ -854,7 +854,7 @@
         ${img ? `<img class="role-card-img" src="${img}" alt="${p.role}">` : ""}
         <div class="role-name ${roleClass}">${p.role}</div>
         <div class="dice">🎲 骰子點數：${p.dice}</div>
-        <p style="color:var(--text-dim); margin:6px 0 0;">${p.role === ROLE.THIEF ? "（大盜會在你的骰子點數回合睜眼，並於該回合第 5 秒偷走奶酪）" : "請記住你的睜眼回合數"}</p>
+        <p style="color:var(--text-dim); margin:6px 0 0;">${p.role === ROLE.THIEF ? "（大盜會在你的骰子點數回合睜眼，並於該回合第 3 秒偷走奶酪）" : "請記住你的睜眼回合數"}</p>
       </div>
       <button class="btn secondary" id="confirmBtn">確認已記住</button>
     `;
@@ -954,7 +954,7 @@
 
   function renderThiefWakeScreen(round){
     clearTimeout(state.thiefRevealTimer);
-    const theftEndAt = Date.now() + 5000;
+    const theftEndAt = Date.now() + 3000;
     scheduleCountdown(theftEndAt);
     render(`
       <div class="screen night-screen">
@@ -962,7 +962,7 @@
         <h2>第 ${round} 回合</h2>
         <p>現在請 <strong style="color:var(--accent)">奶酪大盜</strong> 睜眼查看畫面，其他人請閉眼。</p>
         <div class="reveal-box" id="thiefActionBox">
-          <div class="role-name thief">🧀 請等待第 5 秒再偷走奶酪</div>
+          <div class="role-name thief">🧀 請等待第 3 秒再偷走奶酪</div>
           <p id="thiefActionHint">偷竊倒數中...</p>
         </div>
         <button class="btn" id="continueBtn" disabled>確認並閉眼</button>
@@ -972,18 +972,18 @@
     bindSecretLogButton();
     state.thiefRevealTimer = setTimeout(() => {
       state.stolenBySomeone = true;
-      state.log.push(`第 ${round} 回合第 5 秒：奶酪已被偷走。`);
+      state.log.push(`第 ${round} 回合第 3 秒：奶酪已被偷走。`);
       const box = document.getElementById("thiefActionBox");
       if (box) {
         box.innerHTML = `
           <div class="role-name thief">🧀 奶酪已被偷走</div>
-          <p>第 5 秒已完成偷竊，請關閉螢幕。</p>
+          <p>第 3 秒已完成偷竊，請關閉螢幕。</p>
         `;
       }
       const continueBtn = document.getElementById("continueBtn");
       if (continueBtn) continueBtn.disabled = false;
       state.thiefRevealTimer = null;
-    }, 5000);
+    }, 3000);
     document.getElementById("continueBtn").onclick = () => nightStep();
   }
 
